@@ -10,17 +10,12 @@ import naming_functions as names
 def build_stimulus_table(
         stimulus_pkl_path,
         sync_h5_path,
-        frame_time_strategy,
         minimum_spontaneous_activity_duration,
         extract_const_params_from_repr,
         drop_const_params,
-        maximum_expected_spontanous_activity_duration,
         stimulus_name_map,
         column_name_map,
         output_stimulus_table_path,
-        output_frame_times_path,
-        fail_on_negative_duration,
-        **kwargs
 ):
     stim_file = pkl.read_pkl(stimulus_pkl_path)
     sync_file = sync.read_sync(sync_h5_path)
@@ -67,3 +62,27 @@ def build_stimulus_table(
                                                         ignore_case=False)
 
     stim_table_final.to_csv(output_stimulus_table_path, index=False)
+
+
+
+if __name__ == "__main__":
+    stimulus_pkl_path = "/path/to/stimulus.pkl"
+    sync_h5_path = "/path/to/sync.h5"
+    minimum_spontaneous_activity_duration = 0.0
+    extract_const_params_from_repr = False
+    drop_const_params = stim.DROP_PARAMS
+    stimulus_name_map = stim.default_stimulus_renames
+    column_name_map = stim.default_column_renames
+    output_stimulus_table_path = "/path/to/output.csv"
+
+
+    build_stimulus_table(
+        stimulus_pkl_path,
+        sync_h5_path,
+        minimum_spontaneous_activity_duration,
+        extract_const_params_from_repr,
+        drop_const_params,
+        stimulus_name_map,
+        column_name_map,
+        output_stimulus_table_path,
+    )
