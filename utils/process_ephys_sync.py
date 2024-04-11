@@ -1,5 +1,5 @@
 import numpy as np
-import stimulus_sync_functions as stimulus_sync
+import sync_functions as sync
 import pickle_functions as pkl 
 import functools
 
@@ -29,14 +29,14 @@ def extract_frame_times_from_photodiode(
     photodiode_keys=PHOTODIODE_KEYS,
     trim_discontiguous_frame_times=True):
 
-    photodiode_times = stimulus_sync.get_edges('all', photodiode_keys)
-    vsync_times = stimulus_sync.get_edges('falling', frame_keys)
+    photodiode_times = sync.get_edges('all', photodiode_keys)
+    vsync_times = sync.get_edges('falling', frame_keys)
 
     if trim_discontiguous_frame_times:
-        vsync_times = stimulus_sync.trim_discontiguous_vsyncs(vsync_times)
+        vsync_times = sync.trim_discontiguous_vsyncs(vsync_times)
 
     vsync_times_chunked, pd_times_chunked = \
-        stimulus_sync.separate_vsyncs_and_photodiode_times(
+        sync.separate_vsyncs_and_photodiode_times(
             vsync_times,
             photodiode_times,
             photodiode_cycle)
@@ -45,23 +45,23 @@ def extract_frame_times_from_photodiode(
 
     for i in range(len(vsync_times_chunked)):
 
-        photodiode_times = stimulus_sync.trim_border_pulses(
+        photodiode_times = sync.trim_border_pulses(
             pd_times_chunked[i],
             vsync_times_chunked[i])
-        photodiode_times = stimulus_sync.correct_on_off_effects(
+        photodiode_times = sync.correct_on_off_effects(
             photodiode_times)
-        photodiode_times = stimulus_sync.fix_unexpected_edges(
+        photodiode_times = sync.fix_unexpected_edges(
             photodiode_times,
             cycle=photodiode_cycle)
 
-        frame_duration = stimulus_sync.estimate_frame_duration(
+        frame_duration = sync.estimate_frame_duration(
             photodiode_times,
             cycle=photodiode_cycle)
         irregular_interval_policy = functools.partial(
-            stimulus_sync.allocate_by_vsync,
+            sync.allocate_by_vsync,
             np.diff(vsync_times_chunked[i]))
         frame_indices, frame_starts, frame_end_times = \
-            stimulus_sync.compute_frame_times(
+            sync.compute_frame_times(
                 photodiode_times,
                 frame_duration,
                 len(vsync_times_chunked[i]),
@@ -72,7 +72,7 @@ def extract_frame_times_from_photodiode(
         frame_start_times = np.concatenate((frame_start_times,
                                             frame_starts))
 
-    frame_start_times = stimulus_sync.remove_zero_frames(frame_start_times)
+    frame_start_times = sync.remove_zero_frames(frame_start_times)
 
     return frame_start_times
 
@@ -93,7 +93,7 @@ def build_stimulus_table(
         **kwargs
 ):
     stim_file = pkl.read_pkl(stimulus_pkl_path)
-    frame_times = stimulus_sync.extract_frame_times(
+    frame_times = sync.extract_frame_times(
         strategy=frame_time_strategy,
         trim_discontiguous_frame_times=kwargs.get(
             'trim_discontiguous_frame_times',
@@ -103,4 +103,3 @@ def build_stimulus_table(
             minimum_spontaneous_activity_duration / pkl.get_fps(stim_file)
     )
 
-    
