@@ -223,6 +223,7 @@ def get_falling_edges(sync_file, line, units='samples'):
     changes = get_bit_changes(bit)
     return get_all_times(sync_file, meta_data, units)[np.where(changes == 255)]
 
+
 def get_rising_edges(sync_file, line, units='samples'):
     """
     Returns the counter values for the rizing edges for a specific bit or
@@ -272,6 +273,7 @@ def trim_discontiguous_vsyncs(vs_times, photodiode_cycle=60):
             return vs_times[breaks[largest_chunk-1]:breaks[largest_chunk]]
     else:
         return vs_times
+
 
 def separate_vsyncs_and_photodiode_times(vs_times,
                                          pd_times,
