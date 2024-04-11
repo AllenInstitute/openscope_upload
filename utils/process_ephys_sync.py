@@ -1,0 +1,75 @@
+FRAME_KEYS = ('frames', 'stim_vsync', 'vsync_stim')
+PHOTODIODE_KEYS = ('photodiode', 'stim_photodiode')
+OPTOGENETIC_STIMULATION_KEYS = ("LED_sync", "opto_trial")
+EYE_TRACKING_KEYS = ("eye_frame_received",  # Expected eye tracking
+                                        # line label after 3/27/2020
+                # clocks eye tracking frame pulses (port 0, line 9)
+                "cam2_exposure",
+                # previous line label for eye tracking
+                # (prior to ~ Oct. 2018)
+                "eyetracking",
+                "eye_cam_exposing",
+                "eye_tracking")  # An undocumented, but possible eye tracking line label  # NOQA E114
+BEHAVIOR_TRACKING_KEYS = ("beh_frame_received",  # Expected behavior line label after 3/27/2020  # NOQA E127
+                                            # clocks behavior tracking frame # NOQA E127
+                                            # pulses (port 0, line 8)
+                    "cam1_exposure",
+                    "behavior_monitoring")
+
+def extract_frame_times_from_photodiode(
+            self,
+            photodiode_cycle=60,
+            frame_keys=FRAME_KEYS,
+            photodiode_keys=PHOTODIODE_KEYS,
+            trim_discontiguous_frame_times=True):
+
+        photodiode_times = self.get_edges('all', photodiode_keys)
+        vsync_times = self.get_edges('falling', frame_keys)
+
+        if trim_discontiguous_frame_times:
+            vsync_times = stimulus_sync.trim_discontiguous_vsyncs(vsync_times)
+
+        vsync_times_chunked, pd_times_chunked = \
+            stimulus_sync.separate_vsyncs_and_photodiode_times(
+                vsync_times,
+                photodiode_times,
+                photodiode_cycle)
+
+        logging.info(f"Total chunks: {len(vsync_times_chunked)}")
+
+        frame_start_times = np.zeros((0,))
+
+        for i in range(len(vsync_times_chunked)):
+
+            photodiode_times = stimulus_sync.trim_border_pulses(
+                pd_times_chunked[i],
+                vsync_times_chunked[i])
+            photodiode_times = stimulus_sync.correct_on_off_effects(
+                photodiode_times)
+            photodiode_times = stimulus_sync.fix_unexpected_edges(
+                photodiode_times,
+                cycle=photodiode_cycle)
+
+            frame_duration = stimulus_sync.estimate_frame_duration(
+                photodiode_times,
+                cycle=photodiode_cycle)
+            irregular_interval_policy = functools.partial(
+                stimulus_sync.allocate_by_vsync,
+                np.diff(vsync_times_chunked[i]))
+            frame_indices, frame_starts, frame_end_times = \
+                stimulus_sync.compute_frame_times(
+                    photodiode_times,
+                    frame_duration,
+                    len(vsync_times_chunked[i]),
+                    cycle=photodiode_cycle,
+                    irregular_interval_policy=irregular_interval_policy
+                    )
+
+            frame_start_times = np.concatenate((frame_start_times,
+                                                frame_starts))
+
+        frame_start_times = self.remove_zero_frames(frame_start_times)
+
+        logging.info(f"Total vsyncs: {len(vsync_times)}")
+
+        return frame_start_times
