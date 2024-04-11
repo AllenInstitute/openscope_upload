@@ -78,7 +78,6 @@ def line_to_bit(sync_file, line):
         Line name for which to return corresponding bit.
 
     """
-    sync_file = load_sync(sync_file)
     line_labels = get_line_labels(sync_file)
 
     if type(line) is int:
@@ -90,7 +89,7 @@ def line_to_bit(sync_file, line):
 
 
 def get_edges(
-    sync_file: h5py.File,
+    sync_file: str,
     kind: str,
     keys: Union[str, Sequence[str]],
     units: str = "seconds",
@@ -193,7 +192,6 @@ def get_all_times(sync_file, meta_data, units='samples'):
         Return times in 'samples' or 'seconds'
 
     """
-    sync_file = load_sync(sync_file)
     if meta_data['ni_daq']['counter_bits'] == 32:
         times = sync_file['data'][()][:, 0]
     else:
@@ -219,8 +217,7 @@ def get_falling_edges(sync_file, line, units='samples'):
         Line for which to return edges.
 
     """
-    loaded_sync = load_sync(sync_file)
-    meta_data  = get_meta_data(loaded_sync)
+    meta_data  = get_meta_data(sync_file)
     bit = line_to_bit(sync_file, line)
     changes = get_bit_changes(bit)
     return get_all_times(sync_file, meta_data, units)[np.where(changes == 255)]
@@ -237,8 +234,7 @@ def get_rising_edges(sync_file, line, units='samples'):
         Line for which to return edges.
 
     """
-    loaded_sync = load_sync(sync_file)
-    meta_data  = get_meta_data(loaded_sync)
+    meta_data  = get_meta_data(sync_file)
     bit = line_to_bit(sync_file, line)
     changes = get_bit_changes(bit)
     return get_all_times(sync_file, meta_data, units)[np.where(changes == 1)]

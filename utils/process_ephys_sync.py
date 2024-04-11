@@ -24,10 +24,9 @@ def build_stimulus_table(
 ):
     stim_file = pkl.read_pkl(stimulus_pkl_path)
     sync_file = sync.read_sync(sync_h5_path)
-    
+
     frame_times = stim.extract_frame_times_from_photodiode(
-        sync_file,
-        strategy=frame_time_strategy,
+        sync_file
         )
     minimum_spontaneous_activity_duration = (
             minimum_spontaneous_activity_duration / pkl.get_fps(stim_file)
@@ -46,7 +45,7 @@ def build_stimulus_table(
     )
 
     stim_table_sweeps = stim.create_stim_table(
-        stim_file.stimuli, stimulus_tabler, spon_tabler
+        stim_file, stim_file.stimuli, stimulus_tabler, spon_tabler
     )
 
     stim_table_seconds= stim.convert_frames_to_seconds(

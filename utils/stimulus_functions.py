@@ -37,8 +37,7 @@ BEHAVIOR_TRACKING_KEYS = ("beh_frame_received",  # Expected behavior line label 
                     "behavior_monitoring")
 
 
-def seconds_to_frames(seconds, stim_file):
-    pkl_file = pkl.read_pickle(stim_file)
+def seconds_to_frames(seconds, pkl_file):
     return (np.array(seconds) + pkl.get_pre_blank_sec(pkl_file)) * pkl.get_fps(pkl_file)
 
 
@@ -130,6 +129,7 @@ def parse_stim_repr(
 
 
 def create_stim_table(
+    pkl_file,
     stimuli,
     stimulus_tabler,
     spontaneous_activity_tabler,
@@ -167,7 +167,7 @@ def create_stim_table(
     stimulus_tables = []
 
     for ii, stimulus in enumerate(stimuli):
-        current_tables = stimulus_tabler(stimulus)
+        current_tables = stimulus_tabler(pkl_file, stimulus)
         for table in current_tables:
             table[index_key] = ii
 
@@ -239,13 +239,14 @@ def make_spontaneous_activity_tables(
 
 
 def extract_frame_times_from_photodiode(
+    sync_file,
     photodiode_cycle=60,
     frame_keys=FRAME_KEYS,
     photodiode_keys=PHOTODIODE_KEYS,
     trim_discontiguous_frame_times=True):
 
-    photodiode_times = sync.get_edges('all', photodiode_keys)
-    vsync_times = sync.get_edges('falling', frame_keys)
+    photodiode_times = sync.get_edges(sync_file, 'all', photodiode_keys)
+    vsync_times = sync.get_edges(sync_file, 'falling', frame_keys)
 
     if trim_discontiguous_frame_times:
         vsync_times = sync.trim_discontiguous_vsyncs(vsync_times)
@@ -438,6 +439,7 @@ def read_stimulus_name_from_path(stimulus):
 
 
 def build_stimuluswise_table(
+    pickle_file, 
     stimulus,
     seconds_to_frames,
     start_key="Start",
@@ -498,7 +500,7 @@ def build_stimuluswise_table(
     if get_stimulus_name is None:
         get_stimulus_name = read_stimulus_name_from_path
 
-    frame_display_sequence = seconds_to_frames(stimulus["display_sequence"])
+    frame_display_sequence = seconds_to_frames(stimulus["display_sequence"], pickle_file)
 
     sweep_frames_table = pd.DataFrame(
         stimulus["sweep_frames"], columns=(start_key, end_key)
