@@ -1,7 +1,9 @@
+import functools
+
 import numpy as np
 import sync_functions as sync
 import pickle_functions as pkl 
-import functools
+import stimulus_functions as stim
 
 
 def build_stimulus_table(
@@ -30,3 +32,9 @@ def build_stimulus_table(
             minimum_spontaneous_activity_duration / pkl.get_fps(stim_file)
     )
 
+    stimulus_tabler = functools.partial(
+        stim.build_stimuluswise_table,
+        seconds_to_frames=seconds_to_frames,
+        extract_const_params_from_repr=extract_const_params_from_repr,
+        drop_const_params=drop_const_params,
+    )

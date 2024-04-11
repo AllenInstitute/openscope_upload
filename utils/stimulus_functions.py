@@ -4,6 +4,7 @@ import ast
 import numpy as np
 import pandas as pd
 import sync_functions as sync
+import pickle_functions as pkl
 
 DROP_PARAMS = (  # psychopy boilerplate, more or less
     "name",
@@ -33,6 +34,12 @@ BEHAVIOR_TRACKING_KEYS = ("beh_frame_received",  # Expected behavior line label 
                                             # pulses (port 0, line 8)
                     "cam1_exposure",
                     "behavior_monitoring")
+
+
+def seconds_to_frames(seconds, stim_file):
+    pkl_file = pkl.read_pickle(stim_file)
+    return (np.array(seconds) + pkl.get_pre_blank_sec(pkl_file)) * pkl.get_fps(pkl_file)
+
 
 def extract_const_params_from_stim_repr(
     stim_repr, repr_params_re=REPR_PARAMS_RE, array_re=ARRAY_RE
