@@ -206,7 +206,7 @@ def get_all_times(sync_file, meta_data, units='samples'):
         raise ValueError("Only 'samples' or 'seconds' are valid units.")
 
 
-def get_falling_edges(line, units='samples'):
+def get_falling_edges(sync_file, line, units='samples'):
     """
     Returns the counter values for the falling edges for a specific bit
         or line.
@@ -217,12 +217,13 @@ def get_falling_edges(line, units='samples'):
         Line for which to return edges.
 
     """
-    bit = line_to_bit(line)
+    loaded_sync = load_sync(sync_file)
+    meta_data  = get_meta_data(loaded_sync)
+    bit = line_to_bit(sync_file, line)
     changes = get_bit_changes(bit)
-    return get_all_times(units)[np.where(changes == 255)]
+    return get_all_times(sync_file, meta_data, units)[np.where(changes == 255)]
 
-
-def get_rising_edges(self, line, units='samples'):
+def get_rising_edges(sync_file, line, units='samples'):
     """
     Returns the counter values for the rizing edges for a specific bit or
         line.
@@ -233,9 +234,11 @@ def get_rising_edges(self, line, units='samples'):
         Line for which to return edges.
 
     """
-    bit = self._line_to_bit(line)
-    changes = self.get_bit_changes(bit)
-    return self.get_all_times(units)[np.where(changes == 1)]
+    loaded_sync = load_sync(sync_file)
+    meta_data  = get_meta_data(loaded_sync)
+    bit = line_to_bit(sync_file, line)
+    changes = get_bit_changes(bit)
+    return get_all_times(sync_file, meta_data, units)[np.where(changes == 1)]
 
 
 def trimmed_stats(data, pctiles=(10, 90)):
