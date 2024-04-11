@@ -1,5 +1,6 @@
 import re
 import ast
+import functools
 
 import numpy as np
 import pandas as pd
@@ -290,7 +291,8 @@ def extract_frame_times_from_photodiode(
 
     return frame_start_times
 
-def apply_frame_times(
+
+def convert_frames_to_seconds(
     stimulus_table,
     frame_times,
     frames_per_second=None,

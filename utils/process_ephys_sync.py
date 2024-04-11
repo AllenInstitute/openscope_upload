@@ -22,11 +22,8 @@ def build_stimulus_table(
         **kwargs
 ):
     stim_file = pkl.read_pkl(stimulus_pkl_path)
-    frame_times = sync.extract_frame_times(
+    frame_times = stim.extract_frame_times_from_photodiode(
         strategy=frame_time_strategy,
-        trim_discontiguous_frame_times=kwargs.get(
-            'trim_discontiguous_frame_times',
-            True)
         )
     minimum_spontaneous_activity_duration = (
             minimum_spontaneous_activity_duration / pkl.get_fps(stim_file)
@@ -34,7 +31,20 @@ def build_stimulus_table(
 
     stimulus_tabler = functools.partial(
         stim.build_stimuluswise_table,
-        seconds_to_frames=seconds_to_frames,
+        seconds_to_frames=stim.seconds_to_frames,
         extract_const_params_from_repr=extract_const_params_from_repr,
         drop_const_params=drop_const_params,
+    )
+
+    spon_tabler = functools.partial(
+        stim.make_spontaneous_activity_tables,
+        duration_threshold=minimum_spontaneous_activity_duration,
+    )
+
+    stim_table_sweeps = stim.create_stim_table(
+        stim_file.stimuli, stimulus_tabler, spon_tabler
+    )
+
+    stim_table_seconds= stim.convert_frames_to_seconds(
+        stim_table_sweeps, frame_times, stim_file.frames_per_second, True
     )

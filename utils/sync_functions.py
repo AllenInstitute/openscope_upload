@@ -4,9 +4,24 @@ import pickle_functions as pkl
 from typing import Union, Sequence, Optional
 
 
-def seconds_to_frames(seconds, stim_file):
-    pkl_file = pkl.read_pickle(stim_file)
-    return (np.array(seconds) + pkl.get_pre_blank_sec(pkl_file)) * pkl.get_fps(pkl_file)
+def line_to_bit(line, line_labels):
+    """
+    Returns the bit for a specified line.  Either line name and number is
+        accepted.
+
+    Parameters
+    ----------
+    line : str
+        Line name for which to return corresponding bit.
+
+    """
+    if type(line) is int:
+        return line
+    elif type(line) is str:
+        return line_labels.index(line)
+    else:
+        raise TypeError("Incorrect line type.  Try a str or int.")
+
 
 def get_edges(
     self,
@@ -41,13 +56,13 @@ def get_edges(
 
     """
     if kind == 'falling':
-        fn = self.get_falling_edges
+        fn = get_falling_edges()
     elif kind == 'rising':
-        fn = self.get_rising_edges
+        fn = get_rising_edges()
     elif kind == 'all':
         return np.sort(np.concatenate([
-            self.get_edges('rising', keys, units),
-            self.get_edges('falling', keys, units)
+            get_edges('rising', keys, units),
+            get_edges('falling', keys, units)
         ]))
 
     if isinstance(keys, str):
@@ -62,6 +77,58 @@ def get_edges(
     if not permissive:
         raise KeyError(
             f"none of {keys} were found in this dataset's line labels")
+    
+def get_bit_changes(bit):
+    """
+    Returns the first derivative of a specific bit.
+        Data points are 1 on rising edges and 255 on falling edges.
+
+    Parameters
+    ----------
+    bit : int
+        Bit for which to return changes.
+
+    """
+    bit_array = get_bit(bit)
+    return np.ediff1d(bit_array, to_begin=0)
+
+
+def get_bit(uint_array, bit):
+    """
+    Returns a bool array for a specific bit in a uint ndarray.
+
+    Parameters
+    ----------
+    uint_array : (numpy.ndarray)
+        The array to extract bits from.
+    bit : (int)
+        The bit to extract.
+
+    """
+    return np.bitwise_and(uint_array, 2 ** bit).astype(bool).astype(np.uint8)
+
+def get_all_times(self, units='samples'):
+    """
+    Returns all counter values.
+
+    Parameters
+    ----------
+    units : str
+        Return times in 'samples' or 'seconds'
+
+    """
+    if self.meta_data['ni_daq']['counter_bits'] == 32:
+        times = self.get_all_events()[:, 0]
+    else:
+        times = self.times
+    units = units.lower()
+    if units == 'samples':
+        return times
+    elif units in ['seconds', 'sec', 'secs']:
+        freq = self.sample_freq
+        return times / freq
+    else:
+        raise ValueError("Only 'samples' or 'seconds' are valid units.")
 
 
 def get_falling_edges(self, line, units='samples'):
@@ -75,9 +142,9 @@ def get_falling_edges(self, line, units='samples'):
         Line for which to return edges.
 
     """
-    bit = self._line_to_bit(line)
-    changes = self.get_bit_changes(bit)
-    return self.get_all_times(units)[np.where(changes == 255)]
+    bit = line_to_bit(line)
+    changes = get_bit_changes(bit)
+    return get_all_times(units)[np.where(changes == 255)]
 
 
 def get_rising_edges(self, line, units='samples'):
