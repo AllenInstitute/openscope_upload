@@ -67,7 +67,7 @@ def process_times(sync_file):
     return times
 
 
-def line_to_bit(line, line_labels):
+def line_to_bit(sync_file, line):
     """
     Returns the bit for a specified line.  Either line name and number is
         accepted.
@@ -78,6 +78,9 @@ def line_to_bit(line, line_labels):
         Line name for which to return corresponding bit.
 
     """
+    sync_file = load_sync(sync_file)
+    line_labels = get_line_labels(sync_file)
+
     if type(line) is int:
         return line
     elif type(line) is str:
@@ -171,7 +174,14 @@ def get_bit(uint_array, bit):
     return np.bitwise_and(uint_array, 2 ** bit).astype(bool).astype(np.uint8)
 
 
-def get_all_times(self, units='samples'):
+def get_sample_freq(meta_data):
+    try:
+        return float(meta_data['ni_daq']['sample_freq'])
+    except KeyError:
+        return float(meta_data['ni_daq']['counter_output_freq'])
+
+
+def get_all_times(sync_file, meta_data, units='samples'):
     """
     Returns all counter values.
 
@@ -181,21 +191,22 @@ def get_all_times(self, units='samples'):
         Return times in 'samples' or 'seconds'
 
     """
-    if self.meta_data['ni_daq']['counter_bits'] == 32:
-        times = self.get_all_events()[:, 0]
+    sync_file = load_sync(sync_file)
+    if meta_data['ni_daq']['counter_bits'] == 32:
+        times = sync_file['data'][()][:, 0]
     else:
-        times = self.times
+        times = times
     units = units.lower()
     if units == 'samples':
         return times
     elif units in ['seconds', 'sec', 'secs']:
-        freq = self.sample_freq
+        freq = get_sample_freq(meta_data)
         return times / freq
     else:
         raise ValueError("Only 'samples' or 'seconds' are valid units.")
 
 
-def get_falling_edges(self, line, units='samples'):
+def get_falling_edges(line, units='samples'):
     """
     Returns the counter values for the falling edges for a specific bit
         or line.
