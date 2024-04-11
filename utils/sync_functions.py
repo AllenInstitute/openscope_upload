@@ -1,7 +1,70 @@
+import h5py
+
 import numpy as np
 import scipy.spatial.distance as distance
 import pickle_functions as pkl
+
 from typing import Union, Sequence, Optional
+
+
+def load_sync(path):
+    """
+    Loads an hdf5 sync dataset.
+
+    Parameters
+    ----------
+    path : str
+        Path to hdf5 file.
+
+    """
+    dfile = h5py.File(
+        path, 'r')
+    return dfile
+
+
+def get_meta_data(sync_file):
+    """
+    Returns the metadata for the sync file. 
+    
+    """ 
+    meta_data = eval(sync_file['meta'][()])
+    return meta_data
+
+
+def get_line_labels(sync_file):
+    """
+    Returns the line labels for the sync file. 
+    
+    """ 
+    meta_data = get_meta_data(sync_file)
+    line_labels = meta_data['line_labels']
+    return line_labels
+
+
+def get_times(sync_file):
+    """
+    Returns the times for the sync file. 
+    
+    """ 
+    times = process_times(sync_file)
+    return times
+
+
+def process_times(sync_file):
+    """
+    Preprocesses the time array to account for rollovers.
+        This is only relevant for event-based sampling.
+
+    """
+    times = sync_file['data'][()][:, 0:1].astype(np.int64)
+
+    intervals = np.ediff1d(times, to_begin=0)
+    rollovers = np.where(intervals < 0)[0]
+
+    for i in rollovers:
+        times[i:] += 4294967296
+
+    return times
 
 
 def line_to_bit(line, line_labels):
@@ -24,7 +87,6 @@ def line_to_bit(line, line_labels):
 
 
 def get_edges(
-    self,
     kind: str,
     keys: Union[str, Sequence[str]],
     units: str = "seconds",
@@ -77,7 +139,8 @@ def get_edges(
     if not permissive:
         raise KeyError(
             f"none of {keys} were found in this dataset's line labels")
-    
+
+
 def get_bit_changes(bit):
     """
     Returns the first derivative of a specific bit.
@@ -106,6 +169,7 @@ def get_bit(uint_array, bit):
 
     """
     return np.bitwise_and(uint_array, 2 ** bit).astype(bool).astype(np.uint8)
+
 
 def get_all_times(self, units='samples'):
     """
