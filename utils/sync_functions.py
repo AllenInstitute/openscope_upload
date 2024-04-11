@@ -134,8 +134,8 @@ def get_edges(
                 return  get_rising_edges(sync_file, line, units)
             elif kind == 'all':
                 return np.sort(np.concatenate([
-                    get_edges('rising', keys, units),
-                    get_edges('falling', keys, units)
+                    get_edges(sync_file,'rising', keys, units),
+                    get_edges(sync_file, 'falling', keys, units)
                 ]))
         except ValueError:
             continue
@@ -145,7 +145,7 @@ def get_edges(
             f"none of {keys} were found in this dataset's line labels")
 
 
-def get_bit_changes(bit):
+def get_bit_changes(sync_file, bit):
     """
     Returns the first derivative of a specific bit.
         Data points are 1 on rising edges and 255 on falling edges.
@@ -156,9 +156,20 @@ def get_bit_changes(bit):
         Bit for which to return changes.
 
     """
-    bit_array = get_bit(bit)
+    bit_array = get_sync_file_bit(sync_file, bit)
     return np.ediff1d(bit_array, to_begin=0)
 
+
+def get_all_bits(sync_file):
+    """
+    Returns the data for all bits.
+
+    """
+    return sync_file['data'][()][:, -1]
+
+
+def get_sync_file_bit(sync_file, bit):
+    return get_bit(get_all_bits(sync_file), bit)
 
 def get_bit(uint_array, bit):
     """
@@ -219,7 +230,7 @@ def get_falling_edges(sync_file, line, units='samples'):
     """
     meta_data  = get_meta_data(sync_file)
     bit = line_to_bit(sync_file, line)
-    changes = get_bit_changes(bit)
+    changes = get_bit_changes(sync_file, bit)
     return get_all_times(sync_file, meta_data, units)[np.where(changes == 255)]
 
 
@@ -236,7 +247,7 @@ def get_rising_edges(sync_file, line, units='samples'):
     """
     meta_data  = get_meta_data(sync_file)
     bit = line_to_bit(sync_file, line)
-    changes = get_bit_changes(bit)
+    changes = get_bit_changes(sync_file, bit)
     return get_all_times(sync_file, meta_data, units)[np.where(changes == 1)]
 
 
@@ -250,6 +261,69 @@ def trimmed_stats(data, pctiles=(10, 90)):
     )]
 
     return np.mean(trimmed), np.std(trimmed)
+
+
+def estimate_frame_duration(pd_times, cycle=60):
+    return trimmed_stats(np.diff(pd_times))[0] / cycle
+
+
+def allocate_by_vsync(vs_diff,
+                      index,
+                      starts,
+                      ends,
+                      frame_duration,
+                      irregularity,
+                      cycle):
+    current_vs_diff = vs_diff[index * cycle: (index + 1) * cycle]
+    sign = np.sign(irregularity)
+
+    if sign > 0:
+        vs_ind = np.argmax(current_vs_diff)
+    elif sign < 0:
+        vs_ind = np.argmin(current_vs_diff)
+
+    ends[vs_ind:] += sign * frame_duration
+    starts[vs_ind + 1:] += sign * frame_duration
+
+    return starts, ends
+
+
+
+
+def trim_border_pulses(pd_times, vs_times, frame_interval=1/60, num_frames=5):
+    pd_times = np.array(pd_times)
+    return pd_times[np.logical_and(
+        pd_times >= vs_times[0],
+        pd_times <= vs_times[-1] + num_frames * frame_interval
+    )]
+
+
+def correct_on_off_effects(pd_times):
+    '''
+
+    Notes
+    -----
+    This cannot (without additional info) determine whether an assymmetric
+    offset is odd-long or even-long.
+    '''
+
+    pd_diff = np.diff(pd_times)
+    odd_diff_mean, odd_diff_std = trimmed_stats(pd_diff[1::2])
+    even_diff_mean, even_diff_std = trimmed_stats(pd_diff[0::2])
+
+    half_diff = np.diff(pd_times[0::2])
+    full_period_mean, full_period_std = trimmed_stats(half_diff)
+    half_period_mean = full_period_mean / 2
+
+    odd_offset = odd_diff_mean - half_period_mean
+    even_offset = even_diff_mean - half_period_mean
+
+    pd_times[::2] -= odd_offset / 2
+    pd_times[1::2] -= even_offset / 2
+
+    return pd_times
+
+
 
 
 def trim_discontiguous_vsyncs(vs_times, photodiode_cycle=60):
