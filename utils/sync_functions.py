@@ -90,6 +90,7 @@ def line_to_bit(sync_file, line):
 
 
 def get_edges(
+    sync_file: h5py.File,
     kind: str,
     keys: Union[str, Sequence[str]],
     units: str = "seconds",
@@ -120,22 +121,23 @@ def get_edges(
         line labels
 
     """
-    if kind == 'falling':
-        fn = get_falling_edges()
-    elif kind == 'rising':
-        fn = get_rising_edges()
-    elif kind == 'all':
-        return np.sort(np.concatenate([
-            get_edges('rising', keys, units),
-            get_edges('falling', keys, units)
-        ]))
 
     if isinstance(keys, str):
         keys = [keys]
 
-    for key in keys:
+    for line in keys:
+        if kind == 'falling':
+            fn = get_falling_edges(sync_file, line, units)
+        elif kind == 'rising':
+            fn = get_rising_edges(sync_file, line, units)
+        elif kind == 'all':
+            return np.sort(np.concatenate([
+                get_edges('rising', keys, units),
+                get_edges('falling', keys, units)
+            ]))
+        
         try:
-            return fn(key, units)
+            return fn(sync_file, line, units)
         except ValueError:
             continue
 
@@ -273,6 +275,87 @@ def trim_discontiguous_vsyncs(vs_times, photodiode_cycle=60):
             return vs_times[breaks[largest_chunk-1]:breaks[largest_chunk]]
     else:
         return vs_times
+
+
+def assign_to_last(starts, ends, frame_duration, irregularity):
+    ends[-1] += frame_duration * np.sign(irregularity)
+    return starts, ends
+
+
+def remove_zero_frames(frame_times):
+    deltas = np.diff(frame_times)
+
+    small_deltas = np.where(deltas < 0.01)[0]
+    big_deltas = np.where((deltas > 0.018) * (deltas < 0.1))[0]
+
+    def find_match(big_deltas, value):
+        try:
+            return big_deltas[np.max(np.where((big_deltas < value))[0])] - value
+        except ValueError:
+            return None
+
+    paired_deltas = [find_match(big_deltas, A) for A in small_deltas]
+
+    ft = np.copy(deltas)
+
+    for idx, d in enumerate(small_deltas):
+        if paired_deltas[idx] is not None:
+            if paired_deltas[idx] > -100:
+                ft[d+paired_deltas[idx]] = np.median(deltas)
+                ft[d] = np.median(deltas)
+
+    t = np.concatenate(([np.min(frame_times)],
+                        np.cumsum(ft) + np.min(frame_times)))
+
+    return t
+
+
+
+def compute_frame_times(photodiode_times,
+                        frame_duration,
+                        num_frames,
+                        cycle,
+                        irregular_interval_policy=assign_to_last):
+
+    indices = np.arange(num_frames)
+    starts = np.zeros(num_frames, dtype=float)
+    ends = np.zeros(num_frames, dtype=float)
+
+    num_intervals = len(photodiode_times) - 1
+    for start_index, (start_time, end_time) in \
+            enumerate(zip(photodiode_times[:-1], photodiode_times[1:])):
+
+        interval_duration = end_time - start_time
+        irregularity = \
+            int(np.around((interval_duration) / frame_duration)) - cycle
+
+        local_frame_duration = interval_duration / (cycle + irregularity)
+        durations = \
+            np.zeros(cycle +
+                     (start_index == num_intervals - 1)) + local_frame_duration
+
+        current_ends = np.cumsum(durations) + start_time
+        current_starts = current_ends - durations
+
+        while irregularity != 0:
+            current_starts, current_ends = irregular_interval_policy(
+                start_index,
+                current_starts,
+                current_ends,
+                local_frame_duration,
+                irregularity, cycle
+            )
+            irregularity += -1 * np.sign(irregularity)
+
+        early_frame = start_index * cycle
+        late_frame = \
+            (start_index + 1) * cycle + (start_index == num_intervals - 1)
+
+        remaining = starts[early_frame: late_frame].size
+        starts[early_frame: late_frame] = current_starts[:remaining]
+        ends[early_frame: late_frame] = current_ends[:remaining]
+
+    return indices, starts, ends
 
 
 def separate_vsyncs_and_photodiode_times(vs_times,

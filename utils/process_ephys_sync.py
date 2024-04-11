@@ -4,6 +4,7 @@ import numpy as np
 import sync_functions as sync
 import pickle_functions as pkl 
 import stimulus_functions as stim
+import naming_functions as names
 
 
 def build_stimulus_table(
@@ -22,7 +23,10 @@ def build_stimulus_table(
         **kwargs
 ):
     stim_file = pkl.read_pkl(stimulus_pkl_path)
+    sync_file = sync.read_sync(sync_h5_path)
+    
     frame_times = stim.extract_frame_times_from_photodiode(
+        sync_file,
         strategy=frame_time_strategy,
         )
     minimum_spontaneous_activity_duration = (
@@ -48,3 +52,19 @@ def build_stimulus_table(
     stim_table_seconds= stim.convert_frames_to_seconds(
         stim_table_sweeps, frame_times, stim_file.frames_per_second, True
     )
+
+    stim_table_seconds = names.collapse_columns(stim_table_seconds)
+    stim_table_seconds = names.drop_empty_columns(stim_table_seconds)
+    stim_table_seconds = names.standardize_movie_numbers(
+        stim_table_seconds)
+    stim_table_seconds = names.add_number_to_shuffled_movie(
+        stim_table_seconds)
+    stim_table_seconds = names.map_stimulus_names(
+        stim_table_seconds, stimulus_name_map
+    )
+
+    stim_table_final = names.map_column_names(stim_table_seconds,
+                                                        column_name_map,
+                                                        ignore_case=False)
+
+    stim_table_final.to_csv(output_stimulus_table_path, index=False)
