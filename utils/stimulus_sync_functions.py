@@ -1,13 +1,12 @@
 import numpy as np
 import scipy.spatial.distance as distance
+import pickle_functions as pkl
 from typing import Union, Sequence, Optional
 
 
 def seconds_to_frames(seconds, stim_file):
-    return  \
-        (np.array(seconds) + stim_file.pre_blank_sec) * \
-        stim_file.frames_per_second
-
+    pkl_file = pkl.read_pickle(stim_file)
+    return (np.array(seconds) + pkl.get_pre_blank_sec(pkl_file)) * pkl.get_fps(pkl_file)
 
 def get_edges(
     self,

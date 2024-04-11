@@ -1,5 +1,6 @@
 import numpy as np
 import stimulus_sync_functions as stimulus_sync
+import pickle_functions as pkl 
 import functools
 
 FRAME_KEYS = ('frames', 'stim_vsync', 'vsync_stim')
@@ -91,9 +92,15 @@ def build_stimulus_table(
         fail_on_negative_duration,
         **kwargs
 ):
+    stim_file = pkl.read_pkl(stimulus_pkl_path)
     frame_times = stimulus_sync.extract_frame_times(
         strategy=frame_time_strategy,
         trim_discontiguous_frame_times=kwargs.get(
             'trim_discontiguous_frame_times',
             True)
         )
+    minimum_spontaneous_activity_duration = (
+            minimum_spontaneous_activity_duration / pkl.get_fps(stim_file)
+    )
+
+    
