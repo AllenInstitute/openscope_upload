@@ -23,14 +23,13 @@ BEHAVIOR_TRACKING_KEYS = ("beh_frame_received",  # Expected behavior line label 
 
 
 def extract_frame_times_from_photodiode(
-    self,
     photodiode_cycle=60,
     frame_keys=FRAME_KEYS,
     photodiode_keys=PHOTODIODE_KEYS,
     trim_discontiguous_frame_times=True):
 
-    photodiode_times = self.get_edges('all', photodiode_keys)
-    vsync_times = self.get_edges('falling', frame_keys)
+    photodiode_times = stimulus_sync.get_edges('all', photodiode_keys)
+    vsync_times = stimulus_sync.get_edges('falling', frame_keys)
 
     if trim_discontiguous_frame_times:
         vsync_times = stimulus_sync.trim_discontiguous_vsyncs(vsync_times)
@@ -72,6 +71,29 @@ def extract_frame_times_from_photodiode(
         frame_start_times = np.concatenate((frame_start_times,
                                             frame_starts))
 
-    frame_start_times = self.remove_zero_frames(frame_start_times)
+    frame_start_times = stimulus_sync.remove_zero_frames(frame_start_times)
 
     return frame_start_times
+
+
+def build_stimulus_table(
+        stimulus_pkl_path,
+        sync_h5_path,
+        frame_time_strategy,
+        minimum_spontaneous_activity_duration,
+        extract_const_params_from_repr,
+        drop_const_params,
+        maximum_expected_spontanous_activity_duration,
+        stimulus_name_map,
+        column_name_map,
+        output_stimulus_table_path,
+        output_frame_times_path,
+        fail_on_negative_duration,
+        **kwargs
+):
+    frame_times = stimulus_sync.extract_frame_times(
+        strategy=frame_time_strategy,
+        trim_discontiguous_frame_times=kwargs.get(
+            'trim_discontiguous_frame_times',
+            True)
+        )

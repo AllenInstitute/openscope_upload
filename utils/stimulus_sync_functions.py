@@ -3,6 +3,12 @@ import scipy.spatial.distance as distance
 from typing import Union, Sequence, Optional
 
 
+def seconds_to_frames(seconds, stim_file):
+    return  \
+        (np.array(seconds) + stim_file.pre_blank_sec) * \
+        stim_file.frames_per_second
+
+
 def get_edges(
     self,
     kind: str,
