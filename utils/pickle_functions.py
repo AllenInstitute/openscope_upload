@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 
-def read_pkl(path):
+def load_pkl(path):
     data = pd.read_pickle(path)
     return data
 

@@ -123,20 +123,20 @@ def get_edges(
 
     if isinstance(keys, str):
         keys = [keys]
+    
+    print(keys)
 
-    for line in keys:
-        if kind == 'falling':
-            fn = get_falling_edges(sync_file, line, units)
-        elif kind == 'rising':
-            fn = get_rising_edges(sync_file, line, units)
-        elif kind == 'all':
-            return np.sort(np.concatenate([
-                get_edges('rising', keys, units),
-                get_edges('falling', keys, units)
-            ]))
-        
+    for line in keys:        
         try:
-            return fn(sync_file, line, units)
+            if kind == 'falling':
+                return get_falling_edges(sync_file, line, units)
+            elif kind == 'rising':
+                return  get_rising_edges(sync_file, line, units)
+            elif kind == 'all':
+                return np.sort(np.concatenate([
+                    get_edges('rising', keys, units),
+                    get_edges('falling', keys, units)
+                ]))
         except ValueError:
             continue
 

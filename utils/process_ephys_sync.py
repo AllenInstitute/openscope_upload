@@ -17,8 +17,8 @@ def build_stimulus_table(
         column_name_map,
         output_stimulus_table_path,
 ):
-    stim_file = pkl.read_pkl(stimulus_pkl_path)
-    sync_file = sync.read_sync(sync_h5_path)
+    stim_file = pkl.load_pkl(stimulus_pkl_path)
+    sync_file = sync.load_sync(sync_h5_path)
 
     frame_times = stim.extract_frame_times_from_photodiode(
         sync_file
@@ -66,14 +66,14 @@ def build_stimulus_table(
 
 
 if __name__ == "__main__":
-    stimulus_pkl_path = "/path/to/stimulus.pkl"
-    sync_h5_path = "/path/to/sync.h5"
+    stimulus_pkl_path = r"/allen/programs/mindscope/production/openscope/prod0/specimen_1292228830/ecephys_session_1298465622/1305804722/1298465622_692072_20230921.stim.pkl"
+    sync_h5_path = r"/allen/programs/mindscope/production/openscope/prod0/specimen_1292228830/ecephys_session_1298465622/1304435871/1298465622_692072_20230921.sync"
     minimum_spontaneous_activity_duration = 0.0
     extract_const_params_from_repr = False
     drop_const_params = stim.DROP_PARAMS
-    stimulus_name_map = stim.default_stimulus_renames
-    column_name_map = stim.default_column_renames
-    output_stimulus_table_path = "/path/to/output.csv"
+    stimulus_name_map = names.default_stimulus_renames
+    column_name_map = names.default_column_renames
+    output_stimulus_table_path = r"/allen/programs/mindscope/workgroups/openscope/ahad/output.csv"
 
 
     build_stimulus_table(
