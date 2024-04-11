@@ -1,6 +1,6 @@
 import numpy as np
 import stimulus_sync_functions as stimulus_sync
-
+import functools
 
 FRAME_KEYS = ('frames', 'stim_vsync', 'vsync_stim')
 PHOTODIODE_KEYS = ('photodiode', 'stim_photodiode')

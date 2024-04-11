@@ -1,5 +1,94 @@
 import numpy as np
 import scipy.spatial.distance as distance
+from typing import Union, Sequence, Optional
+
+
+def get_edges(
+    self,
+    kind: str,
+    keys: Union[str, Sequence[str]],
+    units: str = "seconds",
+    permissive: bool = False
+) -> Optional[np.ndarray]:
+    """ Utility function for extracting edge times from a line
+
+    Parameters
+    ----------
+    kind : One of "rising", "falling", or "all". Should this method return
+        timestamps for rising, falling or both edges on the appropriate
+        line
+    keys : These will be checked in sequence. Timestamps will be returned
+        for the first which is present in the line labels
+    units : one of "seconds", "samples", or "indices". The returned
+        "time"stamps will be given in these units.
+    raise_missing : If True and no matching line is found, a KeyError will
+        be raised
+
+    Returns
+    -------
+    An array of edge times. If raise_missing is False and none of the keys
+        were found, returns None.
+
+    Raises
+    ------
+    KeyError : none of the provided keys were found among this dataset's
+        line labels
+
+    """
+    if kind == 'falling':
+        fn = self.get_falling_edges
+    elif kind == 'rising':
+        fn = self.get_rising_edges
+    elif kind == 'all':
+        return np.sort(np.concatenate([
+            self.get_edges('rising', keys, units),
+            self.get_edges('falling', keys, units)
+        ]))
+
+    if isinstance(keys, str):
+        keys = [keys]
+
+    for key in keys:
+        try:
+            return fn(key, units)
+        except ValueError:
+            continue
+
+    if not permissive:
+        raise KeyError(
+            f"none of {keys} were found in this dataset's line labels")
+
+
+def get_falling_edges(self, line, units='samples'):
+    """
+    Returns the counter values for the falling edges for a specific bit
+        or line.
+
+    Parameters
+    ----------
+    line : str
+        Line for which to return edges.
+
+    """
+    bit = self._line_to_bit(line)
+    changes = self.get_bit_changes(bit)
+    return self.get_all_times(units)[np.where(changes == 255)]
+
+
+def get_rising_edges(self, line, units='samples'):
+    """
+    Returns the counter values for the rizing edges for a specific bit or
+        line.
+
+    Parameters
+    ----------
+    line : str
+        Line for which to return edges.
+
+    """
+    bit = self._line_to_bit(line)
+    changes = self.get_bit_changes(bit)
+    return self.get_all_times(units)[np.where(changes == 1)]
 
 
 def trimmed_stats(data, pctiles=(10, 90)):
