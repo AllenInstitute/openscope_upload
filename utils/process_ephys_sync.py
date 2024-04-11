@@ -40,11 +40,11 @@ def build_stimulus_table(
     )
 
     stim_table_sweeps = stim.create_stim_table(
-        stim_file, stim_file.stimuli, stimulus_tabler, spon_tabler
+        stim_file, pkl.get_stimuli(stim_file), stimulus_tabler, spon_tabler
     )
 
     stim_table_seconds= stim.convert_frames_to_seconds(
-        stim_table_sweeps, frame_times, stim_file.frames_per_second, True
+        stim_table_sweeps, frame_times, pkl.get_fps(stim_file), True
     )
 
     stim_table_seconds = names.collapse_columns(stim_table_seconds)
