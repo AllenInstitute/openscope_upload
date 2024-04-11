@@ -89,7 +89,7 @@ def line_to_bit(sync_file, line):
 
 
 def get_edges(
-    sync_file: str,
+    sync_file: h5py.File,
     kind: str,
     keys: Union[str, Sequence[str]],
     units: str = "seconds",
