@@ -1,4 +1,6 @@
 import aind_data_schema.core.session as session_schema
+from aind_data_schema.models.modalities import Modality as schema_modalities
+from aind_data_schema.models.coordinates import Coordinates3d as schema_coordinates
 import argparse
 import datetime
 import json
@@ -29,6 +31,23 @@ import re
     #     reward_consumed_unit='milliliter',
     #     notes=self.notes,
     # )
+
+
+def ephys_modules():
+    ephys_modules = []
+
+    available_probes = [] # TODO!!!
+    for probe_name in available_probes:
+        probe_module = session_schema.EphysModule(
+            assembly_name=probe_name.upper(),
+            arc_angle=0.0,
+            module_angle=0.0,
+            rotation_angle=0.0,
+            primary_targeted_structure="none",
+            ephys_probes=[session_schema.EphysProbeConfig(name=probe_name.upper())]
+        )
+        ephys_modules.append(probe_module)
+    return ephys_modules
 
 
 def experimenter_name(log_path) -> str:
@@ -63,9 +82,24 @@ def iacuc_protocol() -> str:
 # def subject_id() -> int:
 #     pass
 
+def ephys_streams() -> session_schema.Stream:
+    start_time, end_time = session_start_end_times()
+    epmods = ephys_modules()
+    return session_schema.Stream(
+        # stream_start_time=start_time + datetime.timedelta(seconds=min()),
+        # stream_end_time=start_time + datetime.timedelta(seconds=max()),
+        stream_start_time = 0,
+        stream_end_time = -1
+        ephys_modules = epmods
+        stick_microscopes=epmods, # cannot create ecephys modality without stick microscopes
+        stream_modalities=[schema_modalities.ECEPHYS]
+    )
 
-def data_streams() -> list:
-    pass
+
+def data_streams() -> tuple[session_schema.Stream, ...]:
+    data_streams = []
+    data_streams.append(ephys_streams())
+    return tuple(data_streams)
 
 
 def mouse_platform_name() -> str:
@@ -105,7 +139,6 @@ def generate_session_json(session_id: str) -> None:
         notes="",
     )
     session_json.write_standard_file() # writes subject.json
-
 
 
 def parse_args() -> argparse.Namespace:
