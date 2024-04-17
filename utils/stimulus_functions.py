@@ -4,8 +4,8 @@ import functools
 
 import numpy as np
 import pandas as pd
-import sync_functions as sync
-import pickle_functions as pkl
+import utils.sync_functions as sync
+import utils.pickle_functions as pkl
 
 DROP_PARAMS = (  # psychopy boilerplate, more or less
     "name",

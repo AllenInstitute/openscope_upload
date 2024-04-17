@@ -1,21 +1,22 @@
 import functools
 
 import numpy as np
-import sync_functions as sync
-import pickle_functions as pkl 
-import stimulus_functions as stim
-import naming_functions as names
+import pandas as pd
+import utils.sync_functions as sync
+import utils.pickle_functions as pkl 
+import utils.stimulus_functions as stim
+import utils.naming_functions as names
 
 
 def build_stimulus_table(
         stimulus_pkl_path,
         sync_h5_path,
-        minimum_spontaneous_activity_duration,
-        extract_const_params_from_repr,
-        drop_const_params,
-        stimulus_name_map,
-        column_name_map,
         output_stimulus_table_path,
+        minimum_spontaneous_activity_duration=0.0,
+        extract_const_params_from_repr=False,
+        drop_const_params=stim.DROP_PARAMS,
+        stimulus_name_map=names.default_stimulus_renames,
+        column_name_map=names.default_column_renames,
 ):
     stim_file = pkl.load_pkl(stimulus_pkl_path)
     sync_file = sync.load_sync(sync_h5_path)
@@ -62,7 +63,7 @@ def build_stimulus_table(
                                                         ignore_case=False)
 
     stim_table_final.to_csv(output_stimulus_table_path, index=False)
-
+    return output_stimulus_table_path
 
 
 if __name__ == "__main__":

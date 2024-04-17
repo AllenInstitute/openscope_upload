@@ -1,15 +1,19 @@
+import aind_data_schema
 import aind_data_schema.core.session as session_schema
-from aind_data_schema.models.modalities import Modality as schema_modalities
-from aind_data_schema.models.coordinates import Coordinates3d as schema_coordinates
 import argparse
 import datetime
+import io
 import json
 import npc_ephys
 import np_session
 import npc_session
 import npc_sessions
-import pathlib
+import npc_sync
+import pandas as pd
 import re
+from aind_data_schema.models.modalities import Modality as schema_modalities
+from aind_data_schema.models.coordinates import Coordinates3d as schema_coordinates
+from utils import process_ephys_sync as stim_utils
 
 # def _aind_session_metadata(self) -> aind_data_schema.core.session.Session:
     # return aind_data_schema.core.session.Session(
@@ -35,7 +39,7 @@ import re
     #     notes=self.notes,
     # )
 
-def check_valid_probe(probe_letter, recording_dir):
+def valid_probe_folder(probe_letter, recording_dir):
     for probe_dir in  (recording_dir / 'continuous').glob(f'*Probe{probe_letter}*'):
         data_files = ('continuous.dat', 'sample_numbers.npy', 'timestamps.npy')
         for data_file in data_files:
@@ -45,9 +49,13 @@ def check_valid_probe(probe_letter, recording_dir):
 
 
 def get_available_probes(recording_dirs):
+    available_probes = {'A','B','C','D','E','F'}
     for recording_dir in recording_dirs:
-        available_probes = tuple(probe_letter for probe_letter in "ABCDEF" if check_valid_probe(probe_letter, recording_dir))
-    return available_probes
+        invalid_probes = set(probe_letter for probe_letter in available_probes if not valid_probe_folder(probe_letter, recording_dir))
+        print("invalid probes:",invalid_probes)
+        available_probes  -= invalid_probes
+    print("available probes:",available_probes)
+    return tuple(available_probes)
 
 
 def manipulator_coords(probe_name, newscale_coords):
@@ -85,15 +93,20 @@ def experimenter_name(log_path) -> str:
     return [match.replace(".", " ").title() for match in matches]
 
 
-def session_start_end_times(sync_messages_paths) -> tuple[int, int]:
+def sync_data(sync_path):
+    return npc_sync.SyncDataset(io.BytesIO(sync_path.read_bytes()))
+
+
+def session_start_end_times(sync_path, sync_messages_paths) -> tuple[int, int]:
     try:
         extract_timestamp = lambda line: float(line[line.index(':')+1:].strip())
         start_times = [extract_timestamp(sync_messages_path.read_text().split('\n')[0]) for sync_messages_path in sync_messages_paths]
         start_timestamp = datetime.datetime.fromtimestamp(min(start_times) / 1e3)
     except:
         raise ValueError("sync_messages.txt is formatted unexpectedly")
-    print(start_timestamp)
-    return (start_timestamp, -1)
+    
+    end_timestamp = sync_data(sync_path).stop_time       
+    return (start_timestamp, end_timestamp)
 
 
 def session_type() -> str:
@@ -115,7 +128,7 @@ def iacuc_protocol() -> str:
 def ephys_streams(sync_path, recording_dirs, sync_messages_paths, motor_locs_path) -> session_schema.Stream:
     available_probes = get_available_probes(recording_dirs)
 
-    start_time, end_time = session_start_end_times(sync_messages_paths)
+    start_time, end_time = session_start_end_times(sync_path, sync_messages_paths)
     epmods = ephys_modules(available_probes, motor_locs_path)
 
     times = npc_ephys.get_ephys_timing_on_sync(sync=sync_path, recording_dirs=recording_dirs)
@@ -147,7 +160,67 @@ def mouse_platform_name() -> str:
 
 
 def active_mouse_platform() -> str:
-    return False
+    return False    
+
+
+def extract_epochs(stim_table):
+    epochs = []
+
+    current_epoch = [None, 0.0, 0.0]
+    for i, row in stim_table.iterrows():
+        if row["stimulus_name"] != current_epoch[0]:
+            # end current epoch, start a new epoch
+            epochs.append(current_epoch)
+            current_epoch = [row["stimulus_name"], row["Start"], row["End"]]
+        else:
+            # otherwise, keep pushing epoch end time later
+            current_epoch[2] = row["End"]
+
+    # slice off dummy epoch from beginning
+    return epochs[1:]
+
+
+def stim_epochs_from_table(stim_table_path, sync_path, sync_messages_paths):
+    stim = aind_data_schema.core.session.StimulusModality
+
+    stim_table = pd.read_csv(stim_table_path)
+    session_start_time, _ = session_start_end_times(sync_path, sync_messages_paths)
+    print(stim_table)
+
+    epochs = extract_epochs(stim_table)
+    schema_epochs = []
+    for epoch_name, epoch_start, epoch_end in epochs:
+        schema_epochs.append(
+            session_schema.StimulusEpoch(
+                stimulus_start_time=session_start_time + datetime.timedelta(seconds=epoch_start),
+                stimulus_end_time=session_start_time + datetime.timedelta(seconds=epoch_end),
+                stimulus_name=epoch_name,
+                # software=[
+                #     aind_data_schema.models.devices.Software(
+                #         name='PsychoPy',
+                #         version='2022.1.2',
+                #         url='https://www.psychopy.org/',
+                #     ),
+                # ],
+                # script=aind_data_schema.models.devices.Software(
+                #         name='DynamicRoutingTask',
+                #         version=self.source_script.split('DynamicRoutingTask/')[-1],
+                #         url=self.source_script,
+                #     ),
+                stimulus_modalities=[stim.VISUAL] if "opto" not in epoch_name.lower() else [stim.VISUAL, stim.OPTOGENETICS],
+                # stimulus_parameters=get_parameters(epoch_name),
+                # stimulus_device_names=get_device_names(epoch_name),
+                # speaker_config=get_speaker_config(epoch_name),
+                # reward_consumed_during_epoch=get_reward_consumed(epoch_name),
+                # reward_consumed_unit="milliliter",
+                # trials_total=get_num_trials(epoch_name),
+                # trials_finished=get_num_trials(epoch_name),
+                # trials_rewarded=get_num_trials_rewarded(epoch_name),
+                # notes=nwb_epoch.notes.item(),
+            )
+        )
+
+    return schema_epochs
 
 
 def generate_session_json(session_id: str) -> None:
@@ -157,8 +230,14 @@ def generate_session_json(session_id: str) -> None:
     sync_messages_paths = tuple(session.npexp_path.rglob("**/*/sync_messages.txt"))
     sync_path = tuple(session.npexp_path.glob('*.sync'))[0]
     recording_dirs = tuple(session.npexp_path.rglob('**/Record Node*/experiment*/recording*'))
-    session_start, session_end = session_start_end_times(sync_messages_paths)
+    session_start, session_end = session_start_end_times(sync_path, sync_messages_paths)
     motor_locs_path = next(session.npexp_path.glob(f'{session.folder}.motor-locs.csv'))
+
+    pkl_path = session.npexp_path / f"{session.folder}.stim.pkl"
+    stim_table_path = session.npexp_path / f"{session.folder}_stim_epochs.csv" 
+
+    if not stim_table_path.exists():
+        stim_utils.build_stimulus_table(pkl_path, sync_path, stim_table_path)
 
     session_json = session_schema.Session(
         experimenter_full_name=experimenter_name(session.npexp_path / 'exp\logs\debug.log'),
@@ -169,7 +248,7 @@ def generate_session_json(session_id: str) -> None:
         rig_id='TODO',
         subject_id=subject_id,
         data_streams=[ephys_streams(sync_path, recording_dirs, sync_messages_paths, motor_locs_path)],
-        stimulus_epochs=[],
+        stimulus_epochs=stim_epochs_from_table(stim_table_path, sync_path, sync_messages_paths),
         mouse_platform_name=mouse_platform_name(),
         active_mouse_platform=active_mouse_platform(),
         # reward_delivery=,
