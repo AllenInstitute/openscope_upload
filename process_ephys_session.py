@@ -4,7 +4,10 @@ from aind_data_schema.models.coordinates import Coordinates3d as schema_coordina
 import argparse
 import datetime
 import json
+import npc_ephys
 import np_session
+import npc_session
+import npc_sessions
 import pathlib
 import re
 
@@ -32,19 +35,45 @@ import re
     #     notes=self.notes,
     # )
 
+def check_valid_probe(probe_letter, recording_dir):
+    for probe_dir in  (recording_dir / 'continuous').glob(f'*Probe{probe_letter}*'):
+        data_files = ('continuous.dat', 'sample_numbers.npy', 'timestamps.npy')
+        for data_file in data_files:
+            if not (probe_dir / data_file).exists():
+                return False
+    return True
 
-def ephys_modules():
+
+def get_available_probes(recording_dirs):
+    for recording_dir in recording_dirs:
+        available_probes = tuple(probe_letter for probe_letter in "ABCDEF" if check_valid_probe(probe_letter, recording_dir))
+    return available_probes
+
+
+def manipulator_coords(probe_name, newscale_coords):
+    probe_row = newscale_coords.query(f"electrode_group == '{probe_name}'")
+    return schema_coordinates(
+        x=probe_row['x'].item(),
+        y=probe_row['y'].item(),
+        z=probe_row['z'].item(),
+        unit="micrometer",
+    ) 
+
+
+def ephys_modules(available_probes, motor_locs_path):
+    newscale_coords = npc_sessions.get_newscale_coordinates(motor_locs_path)
+    
     ephys_modules = []
-
-    available_probes = [] # TODO!!!
-    for probe_name in available_probes:
+    for probe_letter in available_probes:
+        probe_name = f"probe{probe_letter}"
         probe_module = session_schema.EphysModule(
             assembly_name=probe_name.upper(),
             arc_angle=0.0,
             module_angle=0.0,
             rotation_angle=0.0,
             primary_targeted_structure="none",
-            ephys_probes=[session_schema.EphysProbeConfig(name=probe_name.upper())]
+            ephys_probes=[session_schema.EphysProbeConfig(name=probe_name.upper())],
+            manipulator_coordinates=manipulator_coords(probe_name, newscale_coords)
         )
         ephys_modules.append(probe_module)
     return ephys_modules
@@ -82,15 +111,26 @@ def iacuc_protocol() -> str:
 # def subject_id() -> int:
 #     pass
 
-def ephys_streams() -> session_schema.Stream:
-    start_time, end_time = session_start_end_times()
-    epmods = ephys_modules()
+
+def ephys_streams(sync_path, recording_dirs, sync_messages_paths, motor_locs_path) -> session_schema.Stream:
+    available_probes = get_available_probes(recording_dirs)
+
+    start_time, end_time = session_start_end_times(sync_messages_paths)
+    epmods = ephys_modules(available_probes, motor_locs_path)
+
+    times = npc_ephys.get_ephys_timing_on_sync(sync=sync_path, recording_dirs=recording_dirs)
+    ephys_timing_data = tuple(
+        timing for timing in times if \
+            (p := npc_session.extract_probe_letter(timing.device.name)) is None or p in available_probes
+    )
+
+    stream_first_time = min(timing.start_time for timing in ephys_timing_data)
+    stream_last_time = max(timing.stop_time for timing in ephys_timing_data)
+
     return session_schema.Stream(
-        # stream_start_time=start_time + datetime.timedelta(seconds=min()),
-        # stream_end_time=start_time + datetime.timedelta(seconds=max()),
-        stream_start_time = 0,
-        stream_end_time = -1
-        ephys_modules = epmods
+        stream_start_time=start_time + datetime.timedelta(seconds=stream_first_time),
+        stream_end_time=start_time + datetime.timedelta(seconds=stream_last_time),
+        ephys_modules=epmods,
         stick_microscopes=epmods, # cannot create ecephys modality without stick microscopes
         stream_modalities=[schema_modalities.ECEPHYS]
     )
@@ -112,14 +152,13 @@ def active_mouse_platform() -> str:
 
 def generate_session_json(session_id: str) -> None:
     session = np_session.Session(session_id)
-    print(session.folder)
-    print(session.npexp_path)
-    print(experimenter_name(session.npexp_path / 'exp\logs\debug.log'))
-    print(session_start_end_times(session.npexp_path.rglob("**/*/sync_messages.txt")))
-    print(session.rig)
 
-    session_start, session_end = session_start_end_times(session.npexp_path.rglob("**/*/sync_messages.txt"))
-    subject_id = session.folder.split("_")[1]
+    subject_id = session.folder.split('_')[1]
+    sync_messages_paths = tuple(session.npexp_path.rglob("**/*/sync_messages.txt"))
+    sync_path = tuple(session.npexp_path.glob('*.sync'))[0]
+    recording_dirs = tuple(session.npexp_path.rglob('**/Record Node*/experiment*/recording*'))
+    session_start, session_end = session_start_end_times(sync_messages_paths)
+    motor_locs_path = next(session.npexp_path.glob(f'{session.folder}.motor-locs.csv'))
 
     session_json = session_schema.Session(
         experimenter_full_name=experimenter_name(session.npexp_path / 'exp\logs\debug.log'),
@@ -127,19 +166,19 @@ def generate_session_json(session_id: str) -> None:
         session_end_time=session_end,
         session_type=session_type(),
         iacuc_protocol=iacuc_protocol(),
-        rig_id="TODO",
+        rig_id='TODO',
         subject_id=subject_id,
-        data_streams=[],
+        data_streams=[ephys_streams(sync_path, recording_dirs, sync_messages_paths, motor_locs_path)],
         stimulus_epochs=[],
         mouse_platform_name=mouse_platform_name(),
         active_mouse_platform=active_mouse_platform(),
         # reward_delivery=,
         # reward_consumed_total,
         reward_consumed_unit='milliliter',
-        notes="",
+        notes='',
     )
     session_json.write_standard_file() # writes subject.json
-
+    
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Generate a session.json file for an ephys session')
