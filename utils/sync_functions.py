@@ -50,6 +50,24 @@ def get_times(sync_file):
     return times
 
 
+def extract_led_times(  sync_file,
+                        keys='',
+                        fallback_line=18):
+
+    try:
+        led_times = get_edges(
+            sync_file=sync_file,
+            kind="rising",
+            keys=keys,
+            units="seconds"
+        )
+    except KeyError:
+        led_times = get_rising_edges(sync_file, 
+                                    fallback_line,
+                                    units="seconds")
+
+    return led_times
+
 def process_times(sync_file):
     """
     Preprocesses the time array to account for rollovers.
