@@ -11,9 +11,9 @@ import utils.naming_functions as names
 def build_optogenetics_table(
         opto_pkl_path,
         sync_h5_path,
-        keys,
         condition_map,
         output_opto_table_path,
+        keys=stim.OPTOGENETIC_STIMULATION_KEYS
     ): 
     opto_file = pkl.load_pkl(opto_pkl_path)
     sync_file = sync.load_sync(sync_h5_path)
