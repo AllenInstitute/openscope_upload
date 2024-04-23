@@ -8,6 +8,53 @@ import utils.stimulus_functions as stim
 import utils.naming_functions as names
 
 
+def build_optogenetics_table(
+        opto_pkl_path,
+        sync_h5_path,
+        keys,
+        condition_map,
+        output_opto_table_path,
+    ): 
+    opto_file = pkl.load_pkl(opto_pkl_path)
+    sync_file = sync.load_sync(sync_h5_path)
+
+    start_times = sync.extract_led_times(sync_file,
+                                         keys
+                                        )
+
+    conditions = [str(item) for item in opto_file['opto_conditions']]
+    levels = opto_file['opto_levels']
+    assert len(conditions) == len(levels)
+    if len(start_times) > len(conditions):
+        raise ValueError(
+            f"there are {len(start_times) - len(conditions)} extra "
+            f"optotagging sync times!")
+    optotagging_table = pd.DataFrame({
+        'start_time': start_times,
+        'condition': conditions,
+        'level': levels
+    })
+    optotagging_table = optotagging_table.sort_values(by='start_time', axis=0)
+
+    stop_times = []
+    names = []
+    conditions = []
+    for ii, row in optotagging_table.iterrows():
+        condition = condition_map[row["condition"]]
+        stop_times.append(row["start_time"] + condition["duration"])
+        names.append(condition["name"])
+        conditions.append(condition["condition"])
+
+    optotagging_table["stop_time"] = stop_times
+    optotagging_table["stimulus_name"] = names
+    optotagging_table["condition"] = conditions
+    optotagging_table["duration"] = \
+        optotagging_table["stop_time"] - optotagging_table["start_time"]
+
+    optotagging_table.to_csv(output_opto_table_path, index=False)
+    return {'output_opto_table_path': output_opto_table_path}
+
+
 def build_stimulus_table(
         stimulus_pkl_path,
         sync_h5_path,
