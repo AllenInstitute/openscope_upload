@@ -233,24 +233,26 @@ def extract_stim_epochs(stim_table):
 
     current_epoch = [None, 0.0, 0.0, {}, set()]
     epoch_start_idx = 0
-    for i, row in stim_table.iterrows():
-        if row['stimulus_name'] != current_epoch[0]:
-            # end current epoch, summarize this epochs params and stim templates and start a new epoch
-            for column in stim_table:
-                if column in ('start_time', 'stop_time', 'stimulus_name'):
-                    continue
-                param_set = set(stim_table[column][epoch_start_idx:i].dropna())
-                if column == 'stim_template':
-                    current_epoch[4] = param_set
-                else:
-                    current_epoch[3][column] = param_set
+    for current_idx, row in stim_table.iterrows():
+        # if this row is a movie, record the movie name in the epoch entry
+        if 'stim_type' in stim_table.columns and 'stim_template' in stim_table.columns:
+            if row['stim_type'] == 'TODO: REPLACE THIS WITH PROPER VALUE FOR MOVIES':
+                current_epoch[5].add(row['stim_template'])
 
-            epochs.append(current_epoch)
-            epoch_start_idx = i
-            current_epoch = [row['stimulus_name'], row['start_time'], row['stop_time'], {}, set()]
-        else:
-            # otherwise, keep pushing epoch end time later
+        # if stim name hasn't changed, we are in the same epoch, keep pushing the stop time
+        if row['stim_name'] == current_epoch[0]:
             current_epoch[2] = row['stop_time']
+            continue
+
+        # if the stim name changes, summarize current epoch's parameters and start a new epoch
+        for column in stim_table:
+            if column not in ('start_time', 'stop_time', 'stim_name', 'stim_type', 'stim_template'):
+                param_set = set(stim_table[column][epoch_start_idx:current_idx].dropna())
+                current_epoch[3][column] = param_set
+
+        epochs.append(current_epoch)
+        epoch_start_idx = current_idx
+        current_epoch = [row['stim_name'], row['start_time'], row['stop_time'], {}, set()]
 
     # slice off dummy epoch from beginning
     return epochs[1:]
