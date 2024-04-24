@@ -133,7 +133,7 @@ def create_stim_table(
     stimuli,
     stimulus_tabler,
     spontaneous_activity_tabler,
-    sort_key="Start",
+    sort_key="start_time",
     block_key="stimulus_block",
     index_key="stimulus_index",
 ):
@@ -153,7 +153,7 @@ def create_stim_table(
         describing spontaneous activity sweeps.
     sort_key : str, optional
         Sort the final stimulus table in ascending order by this key.
-        Defaults to 'Start'.
+        Defaults to 'start_time'.
 
     Returns
     -------
@@ -188,7 +188,7 @@ def create_stim_table(
 
 
 def make_spontaneous_activity_tables(
-    stimulus_tables, start_key="Start", end_key="End", duration_threshold=0.0
+    stimulus_tables, start_key="start_time", end_key="stop_time", duration_threshold=0.0
 ):
     """ Fills in frame gaps in a set of stimulus tables. Suitable for use as
     the spontaneous_activity_tabler in create_stim_table.
@@ -198,9 +198,9 @@ def make_spontaneous_activity_tables(
     stimulus_tables : list of pd.DataFrame
         Input tables - should have start_key and end_key columns.
     start_key : str, optional
-        Column name for the start of a sweep. Defaults to 'Start'.
+        Column name for the start of a sweep. Defaults to 'start_time'.
     end_key : str, optional
-        Column name for the end of a sweep. Defaults to 'End'.
+        Column name for the end of a sweep. Defaults to 'stop_time'.
     duration_threshold : numeric or None
         If not None (default is 0), remove spontaneous activity sweeps
         whose duration is less than this threshold.
@@ -298,7 +298,7 @@ def convert_frames_to_seconds(
     frame_times,
     frames_per_second=None,
     extra_frame_time=False,
-    map_columns=("Start", "End"),
+    map_columns=("start_time", "stop_time"),
 ):
     """ Converts sweep times from frames to seconds.
 
@@ -319,7 +319,7 @@ def convert_frames_to_seconds(
         frame ended. If False, no extra time will be
         appended. If None (default), the increment will be 1.0/fps.
     map_columns : tuple of str, optional
-        Which columns to replace with times. Defaults to 'Start' and 'End
+        Which columns to replace with times. Defaults to 'start_time' and 'stop_time'
 
     Returns
     -------
@@ -347,8 +347,8 @@ def convert_frames_to_seconds(
 def apply_display_sequence(
     sweep_frames_table,
     frame_display_sequence,
-    start_key="Start",
-    end_key="End",
+    start_key="start_time",
+    end_key="stop_time",
     diff_key="dif",
     block_key="stimulus_block",
 ):
@@ -442,8 +442,8 @@ def build_stimuluswise_table(
     pickle_file, 
     stimulus,
     seconds_to_frames,
-    start_key="Start",
-    end_key="End",
+    start_key="start_time",
+    end_key="stop_time",
     name_key="stimulus_name",
     block_key="stimulus_block",
     get_stimulus_name=None,
@@ -477,9 +477,9 @@ def build_stimuluswise_table(
     seconds_to_frames : function
         Converts experiment seconds to frames
     start_key : str, optional
-        key to use for start frame indices. Defaults to 'Start'
+        key to use for start frame indices. Defaults to 'start_time'
     end_key : str, optional
-        key to use for end frame indices. Defaults to 'End'
+        key to use for end frame indices. Defaults to 'stop_time'
     name_key : str, optional
         key to use for stimulus name annotations. Defaults to 'stimulus_name'
     block_key : str, optional
@@ -493,7 +493,7 @@ def build_stimuluswise_table(
     list of pandas.DataFrame :
         Each table corresponds to an entry in the display sequence.
         Rows are sweeps, columns are stimulus parameter values as well as
-        "Start" and "End".
+        "start_time" and 'stop_time.
 
     """
 
