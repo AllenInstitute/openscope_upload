@@ -439,7 +439,7 @@ def read_stimulus_name_from_path(stimulus):
 
 
 def get_template_name(stimulus):
-    input_string = stimulus['stimulus']
+    input_string = stimulus['stim']
     # Define the regex pattern to match 'name=' followed by a single-quoted string
     pattern = r"name='([^']+)'"
 
@@ -460,7 +460,7 @@ def build_stimuluswise_table(
     start_key="start_time",
     end_key="stop_time",
     name_key="stimulus_name",
-    template_key="template_name",
+    #template_key="template_name",
     block_key="stimulus_block",
     get_stimulus_name=None,
     extract_const_params_from_repr=False,
@@ -533,7 +533,7 @@ def build_stimuluswise_table(
             start_key: sweep_frames_table[start_key],
             end_key: sweep_frames_table[end_key] + 1,
             name_key: get_stimulus_name(stimulus),
-            template_key: get_template_name(stimulus),
+            #template_key: 'template_name',
             block_key: sweep_frames_table[block_key],
         }
     )
