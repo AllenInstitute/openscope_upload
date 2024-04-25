@@ -438,6 +438,21 @@ def read_stimulus_name_from_path(stimulus):
     return stim_name
 
 
+def get_template_name(stimulus):
+    input_string = stimulus['stimulus']
+    # Define the regex pattern to match 'name=' followed by a single-quoted string
+    pattern = r"name='([^']+)'"
+
+    # Use re.search to find the first occurrence of the pattern
+    match = re.search(pattern, input_string)
+
+    if match:
+        # Extract the captured group (the content inside the single quotes)
+        return(match.group(1))  # This will return what's inside the single quotes
+    else:
+        return None  
+
+
 def build_stimuluswise_table(
     pickle_file, 
     stimulus,
@@ -445,6 +460,7 @@ def build_stimuluswise_table(
     start_key="start_time",
     end_key="stop_time",
     name_key="stimulus_name",
+    template_key="template_name",
     block_key="stimulus_block",
     get_stimulus_name=None,
     extract_const_params_from_repr=False,
@@ -499,6 +515,7 @@ def build_stimuluswise_table(
 
     if get_stimulus_name is None:
         get_stimulus_name = read_stimulus_name_from_path
+    
 
     frame_display_sequence = seconds_to_frames(stimulus["display_sequence"], pickle_file)
 
@@ -516,6 +533,7 @@ def build_stimuluswise_table(
             start_key: sweep_frames_table[start_key],
             end_key: sweep_frames_table[end_key] + 1,
             name_key: get_stimulus_name(stimulus),
+            template_key: get_template_name(stimulus),
             block_key: sweep_frames_table[block_key],
         }
     )
