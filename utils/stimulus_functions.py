@@ -8,7 +8,6 @@ import utils.sync_functions as sync
 import utils.pickle_functions as pkl
 
 DROP_PARAMS = (  # psychopy boilerplate, more or less
-    "name",
     "autoLog",
     "autoDraw",
     "win",
@@ -460,7 +459,7 @@ def build_stimuluswise_table(
     start_key="start_time",
     end_key="stop_time",
     name_key="stimulus_name",
-    #template_key="template_name",
+    template_key="template_name",
     block_key="stimulus_block",
     get_stimulus_name=None,
     extract_const_params_from_repr=False,
@@ -533,7 +532,7 @@ def build_stimuluswise_table(
             start_key: sweep_frames_table[start_key],
             end_key: sweep_frames_table[end_key] + 1,
             name_key: get_stimulus_name(stimulus),
-            #template_key: 'template_name',
+            template_key: 'template_name',
             block_key: sweep_frames_table[block_key],
         }
     )
