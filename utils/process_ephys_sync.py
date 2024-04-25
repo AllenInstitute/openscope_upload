@@ -2,10 +2,10 @@ import functools
 
 import numpy as np
 import pandas as pd
-import  utils.sync_functions as sync
-import  utils.pickle_functions as pkl 
-import  utils.stimulus_functions as stim
-import  utils.naming_functions as names
+import sync_functions as sync
+import pickle_functions as pkl 
+import stimulus_functions as stim
+import naming_functions as names
 
 
 def build_optogenetics_table(

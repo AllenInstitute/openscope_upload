@@ -2,7 +2,7 @@ import h5py
 
 import numpy as np
 import scipy.spatial.distance as distance
-import utils.pickle_functions as pkl
+import pickle_functions as pkl
 
 from typing import Union, Sequence, Optional
 

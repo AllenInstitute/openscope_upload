@@ -4,8 +4,8 @@ import functools
 
 import numpy as np
 import pandas as pd
-import utils.sync_functions as sync
-import utils.pickle_functions as pkl
+import sync_functions as sync
+import pickle_functions as pkl
 
 DROP_PARAMS = (  # psychopy boilerplate, more or less
     "autoLog",
@@ -124,6 +124,7 @@ def parse_stim_repr(
         if drop_param in stim_params:
             del stim_params[drop_param]
 
+    print(stim_params)
     return stim_params
 
 
@@ -164,7 +165,6 @@ def create_stim_table(
     """
 
     stimulus_tables = []
-
     for ii, stimulus in enumerate(stimuli):
         current_tables = stimulus_tabler(pkl_file, stimulus)
         for table in current_tables:
@@ -437,7 +437,7 @@ def read_stimulus_name_from_path(stimulus):
     return stim_name
 
 
-def get_template_name(stimulus):
+def get_stimulus_type(stimulus):
     input_string = stimulus['stim']
     # Define the regex pattern to match 'name=' followed by a single-quoted string
     pattern = r"name='([^']+)'"
@@ -459,7 +459,7 @@ def build_stimuluswise_table(
     start_key="start_time",
     end_key="stop_time",
     name_key="stimulus_name",
-    template_key="template_name",
+    template_key="stimulus_type",
     block_key="stimulus_block",
     get_stimulus_name=None,
     extract_const_params_from_repr=False,
@@ -532,7 +532,7 @@ def build_stimuluswise_table(
             start_key: sweep_frames_table[start_key],
             end_key: sweep_frames_table[end_key] + 1,
             name_key: get_stimulus_name(stimulus),
-            template_key: 'template_name',
+            template_key: get_stimulus_type(stimulus),
             block_key: sweep_frames_table[block_key],
         }
     )
