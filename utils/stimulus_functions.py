@@ -439,15 +439,16 @@ def read_stimulus_name_from_path(stimulus):
 
 def get_stimulus_type(stimulus):
     input_string = stimulus['stim']
-    # Define the regex pattern to match 'name=' followed by a single-quoted string
+    
+    # Regex for single quotes
     pattern = r"name='([^']+)'"
 
-    # Use re.search to find the first occurrence of the pattern
     match = re.search(pattern, input_string)
 
     if match:
-        # Extract the captured group (the content inside the single quotes)
-        return(match.group(1))  # This will return what's inside the single quotes
+        stim_type = match.group(1)
+        stim_type = stim_type.replace("unnamed ","")
+        return(stim_type)
     else:
         return None  
 
