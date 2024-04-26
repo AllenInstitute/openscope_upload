@@ -354,7 +354,7 @@ def generate_session_json(session_id: str) -> None:
         reward_consumed_unit='milliliter',
         notes='',
     )
-    session_json.write_standard_file()
+    session_json.write_standard_file(session.npexp_path)
 
 
 def parse_args() -> argparse.Namespace:
