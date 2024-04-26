@@ -1,0 +1,12 @@
+{
+    "OpenScopeVision2Hippocampus": {
+        "description": "OpenScope's Vision 2 Hippocampus project",
+        "iacuc_protocol": "2117",
+        "session_type": ""
+    },
+    "OpenScopeTemporalBarcode": {
+        "description": "OpenScope's Temporal Barcoding project",
+        "iacuc_protocol": "2117",
+        "session_type": ""
+    }
+}

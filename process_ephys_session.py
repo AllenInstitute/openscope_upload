@@ -328,6 +328,7 @@ def generate_session_json(session_id: str) -> None:
     experiment_info = json.loads(pl.Path(__file__).with_name('experiment_info.json').read_text())
 
     if not stim_table_path.exists():
+        print("building stim table")
         stim_utils.build_stimulus_table(pkl_path, sync_path, stim_table_path)
     print("getting stim epochs")
     stim_epochs = epochs_from_stim_table(session, pkl_path, stim_table_path, sync_path)
@@ -354,7 +355,7 @@ def generate_session_json(session_id: str) -> None:
         reward_consumed_unit='milliliter',
         notes='',
     )
-    session_json.write_standard_file()
+    session_json.write_standard_file(session.npexp_path)
 
 
 def parse_args() -> argparse.Namespace:

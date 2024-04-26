@@ -189,16 +189,15 @@ if __name__ == "__main__":
             "condition": "cosine pulse"
         },
     }
-    '''
     build_stimulus_table(
         stimulus_pkl_path,
         sync_h5_path,
+        output_stimulus_table_path,
         minimum_spontaneous_activity_duration,
         extract_const_params_from_repr,
         drop_const_params,
         stimulus_name_map,
         column_name_map,
-        output_stimulus_table_path,
     )
     '''
     build_optogenetics_table(
@@ -208,3 +207,4 @@ if __name__ == "__main__":
         conditions,
         output_opto_table_path
     )
+    '''

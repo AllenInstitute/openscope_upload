@@ -8,7 +8,6 @@ import utils.sync_functions as sync
 import utils.pickle_functions as pkl
 
 DROP_PARAMS = (  # psychopy boilerplate, more or less
-    "name",
     "autoLog",
     "autoDraw",
     "win",
@@ -125,6 +124,7 @@ def parse_stim_repr(
         if drop_param in stim_params:
             del stim_params[drop_param]
 
+    print(stim_params)
     return stim_params
 
 
@@ -134,8 +134,8 @@ def create_stim_table(
     stimulus_tabler,
     spontaneous_activity_tabler,
     sort_key="start_time",
-    block_key="stimulus_block",
-    index_key="stimulus_index",
+    block_key="stim_block",
+    index_key="stim_index",
 ):
     """ Build a full stimulus table
 
@@ -165,7 +165,6 @@ def create_stim_table(
     """
 
     stimulus_tables = []
-
     for ii, stimulus in enumerate(stimuli):
         current_tables = stimulus_tabler(pkl_file, stimulus)
         for table in current_tables:
@@ -350,7 +349,7 @@ def apply_display_sequence(
     start_key="start_time",
     end_key="stop_time",
     diff_key="dif",
-    block_key="stimulus_block",
+    block_key="stim_block",
 ):
     """ Adjust raw sweep frames for a stimulus based on the display sequence
     for that stimulus.
@@ -438,14 +437,31 @@ def read_stimulus_name_from_path(stimulus):
     return stim_name
 
 
+def get_stimulus_type(stimulus):
+    input_string = stimulus['stim']
+    
+    # Regex for single quotes
+    pattern = r"name='([^']+)'"
+
+    match = re.search(pattern, input_string)
+
+    if match:
+        stim_type = match.group(1)
+        stim_type = stim_type.replace("unnamed ","")
+        return(stim_type)
+    else:
+        return None  
+
+
 def build_stimuluswise_table(
     pickle_file, 
     stimulus,
     seconds_to_frames,
     start_key="start_time",
     end_key="stop_time",
-    name_key="stimulus_name",
-    block_key="stimulus_block",
+    name_key="stim_name",
+    template_key="stim_type",
+    block_key="stim_block",
     get_stimulus_name=None,
     extract_const_params_from_repr=False,
     drop_const_params=DROP_PARAMS,
@@ -481,7 +497,7 @@ def build_stimuluswise_table(
     end_key : str, optional
         key to use for end frame indices. Defaults to 'stop_time'
     name_key : str, optional
-        key to use for stimulus name annotations. Defaults to 'stimulus_name'
+        key to use for stimulus name annotations. Defaults to 'stim_name'
     block_key : str, optional
         key to use for the 0-index position of this stimulus block
     get_stimulus_name : function | dict -> str, optional
@@ -499,6 +515,7 @@ def build_stimuluswise_table(
 
     if get_stimulus_name is None:
         get_stimulus_name = read_stimulus_name_from_path
+    
 
     frame_display_sequence = seconds_to_frames(stimulus["display_sequence"], pickle_file)
 
@@ -516,6 +533,7 @@ def build_stimuluswise_table(
             start_key: sweep_frames_table[start_key],
             end_key: sweep_frames_table[end_key] + 1,
             name_key: get_stimulus_name(stimulus),
+            template_key: get_stimulus_type(stimulus),
             block_key: sweep_frames_table[block_key],
         }
     )
