@@ -134,8 +134,8 @@ def create_stim_table(
     stimulus_tabler,
     spontaneous_activity_tabler,
     sort_key="start_time",
-    block_key="stimulus_block",
-    index_key="stimulus_index",
+    block_key="stim_block",
+    index_key="stim_index",
 ):
     """ Build a full stimulus table
 
@@ -349,7 +349,7 @@ def apply_display_sequence(
     start_key="start_time",
     end_key="stop_time",
     diff_key="dif",
-    block_key="stimulus_block",
+    block_key="stim_block",
 ):
     """ Adjust raw sweep frames for a stimulus based on the display sequence
     for that stimulus.
@@ -461,7 +461,11 @@ def build_stimuluswise_table(
     end_key="stop_time",
     name_key="stim_name",
     template_key="stim_type",
+<<<<<<< HEAD
     block_key="stimulus_block",
+=======
+    block_key="stim_block",
+>>>>>>> e2d078e064fd3b5044ae1517e0a5b6afea55a907
     get_stimulus_name=None,
     extract_const_params_from_repr=False,
     drop_const_params=DROP_PARAMS,
