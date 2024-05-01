@@ -118,7 +118,7 @@ def add_number_to_shuffled_movie(
     table,
     natural_movie_re=GENERIC_MOVIE_RE,
     template_re=SHUFFLED_MOVIE_RE,
-    stim_colname="stimulus_name",
+    stim_colname="stim_name",
     template="natural_movie_{}_shuffled",
     tmp_colname="__movie_number__",
 ):
@@ -161,7 +161,7 @@ def standardize_movie_numbers(
     movie_re=GENERIC_MOVIE_RE,
     numeral_re=NUMERAL_RE,
     digit_names=DIGIT_NAMES,
-    stim_colname="stimulus_name",
+    stim_colname="stim_name",
 ):
     """Natural movie stimuli in visual coding are numbered using words, like
     "natural_movie_two" rather than "natural_movie_2". This function ensures
@@ -204,7 +204,7 @@ def standardize_movie_numbers(
     return table
 
 
-def map_stimulus_names(table, name_map=None, stim_colname="stimulus_name"):
+def map_stimulus_names(table, name_map=None, stim_colname="stim_name"):
     """Applies a mappting to the stimulus names in a stimulus table
 
     Parameters

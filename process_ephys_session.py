@@ -84,33 +84,33 @@ DEFAULT_OPTO_CONDITIONS = {
 
 
 def get_available_probes(platform_json):
-    # available_probes = {'A','B','C','D','E','F'}
-    # for recording_dir in recording_dirs:
-    #     invalid_probes = set(probe_letter for probe_letter in available_probes if not valid_probe_folder(probe_letter, recording_dir))
-    #     print('invalid probes:',invalid_probes)
-    #     available_probes  -= invalid_probes
     insertion_notes = platform_json['InsertionNotes']
-    available_probes = [letter for letter in 'ABCDEF' if insertion_notes == {} or not insertion_notes[f'Probe{letter}']["FailedToInsert"]]
+    if insertion_notes == {}:
+        available_probes = 'ABCDEF'
+    else:
+        available_probes = [letter for letter in 'ABCDEF' if not insertion_notes.get(f'Probe{letter}', {}).get('FailedToInsert', False)]
     print('available probes:',available_probes)
     return tuple(available_probes)
 
 
 def manipulator_coords(probe_name, newscale_coords):
     probe_row = newscale_coords.query(f"electrode_group == '{probe_name}'")
-    return schema_coordinates(
-        x=probe_row['x'].item(),
-        y=probe_row['y'].item(),
-        z=probe_row['z'].item(),
-        unit='micrometer',
-    ) 
+    if probe_row.empty:
+        return schema_coordinates(x='0.0', y='0.0', z='0.0', unit='micrometer'), 'Coordinate info not available'
+    else:
+        x, y, z = probe_row['x'].item(), probe_row['y'].item(), probe_row['z'].item()
+    return schema_coordinates(x=x, y=y, z=z, unit='micrometer'), ''
 
 
 def ephys_modules(available_probes, motor_locs_path):
     newscale_coords = npc_sessions.get_newscale_coordinates(motor_locs_path)
-    
+    print(newscale_coords)
+
     ephys_modules = []
     for probe_letter in available_probes:
         probe_name = f'probe{probe_letter}'
+        manipulator_coordinates, notes = manipulator_coords(probe_name, newscale_coords)
+
         probe_module = session_schema.EphysModule(
             assembly_name=probe_name.upper(),
             arc_angle=0.0,
@@ -118,7 +118,8 @@ def ephys_modules(available_probes, motor_locs_path):
             rotation_angle=0.0,
             primary_targeted_structure='none',
             ephys_probes=[session_schema.EphysProbeConfig(name=probe_name.upper())],
-            manipulator_coordinates=manipulator_coords(probe_name, newscale_coords)
+            manipulator_coordinates=manipulator_coordinates,
+            notes=notes
         )
         ephys_modules.append(probe_module)
     return ephys_modules
@@ -153,7 +154,7 @@ def ephys_stream(sync_path, recording_dirs, motor_locs_path, platform_json) -> s
         stream_start_time=start_time + datetime.timedelta(seconds=stream_first_time),
         stream_end_time=start_time + datetime.timedelta(seconds=stream_last_time),
         ephys_modules=epmods,
-        stick_microscopes=epmods, # cannot create ecephys modality without stick microscopes
+        stick_microscopes=[],
         stream_modalities=[schema_modalities.ECEPHYS]
     )
 
@@ -204,7 +205,7 @@ def epoch_from_opto_table(session, opto_table_path, sync_path):
 
     opto_params = {}
     for column in opto_table:
-        if column in ('start_time', 'stop_time', 'stimulus_name'):
+        if column in ('start_time', 'stop_time', 'stim_name'):
             continue
         param_set = set(opto_table[column].dropna())
         opto_params[column] = param_set
@@ -234,25 +235,23 @@ def extract_stim_epochs(stim_table):
     current_epoch = [None, 0.0, 0.0, {}, set()]
     epoch_start_idx = 0
     for current_idx, row in stim_table.iterrows():
-        # if this row is a movie, record the movie name in the epoch entry
-        if 'stim_type' in stim_table.columns and 'stim_template' in stim_table.columns:
-            if row['stim_type'] == 'TODO: REPLACE THIS WITH PROPER VALUE FOR MOVIES':
-                current_epoch[5].add(row['stim_template'])
-
-        # if stim name hasn't changed, we are in the same epoch, keep pushing the stop time
-        if row['stim_name'] == current_epoch[0]:
-            current_epoch[2] = row['stop_time']
-            continue
-
         # if the stim name changes, summarize current epoch's parameters and start a new epoch
-        for column in stim_table:
-            if column not in ('start_time', 'stop_time', 'stim_name', 'stim_type', 'stim_template'):
-                param_set = set(stim_table[column][epoch_start_idx:current_idx].dropna())
-                current_epoch[3][column] = param_set
+        if row['stim_name'] != current_epoch[0]:
+            for column in stim_table:
+                if column not in ('start_time', 'stop_time', 'stim_name', 'stim_type', 'frame'):
+                    param_set = set(stim_table[column][epoch_start_idx:current_idx].dropna())
+                    current_epoch[3][column] = param_set
 
-        epochs.append(current_epoch)
-        epoch_start_idx = current_idx
-        current_epoch = [row['stim_name'], row['start_time'], row['stop_time'], {}, set()]
+            epochs.append(current_epoch)
+            epoch_start_idx = current_idx
+            current_epoch = [row['stim_name'], row['start_time'], row['stop_time'], {}, set()]
+        # if stim name hasn't changed, we are in the same epoch, keep pushing the stop time
+        else:
+            current_epoch[2] = row['stop_time']
+
+        # if this row is a movie or image set, record it's stim name in the epoch's templates entry
+        if 'image' in row.get('stim_type','').lower() or 'movie' in row.get('stim_type','').lower():
+            current_epoch[4].add(row['stim_name'])
 
     # slice off dummy epoch from beginning
     return epochs[1:]
@@ -310,11 +309,14 @@ def generate_session_json(session_id: str) -> None:
     # sometimes data files are deleted on npexp, better to try files on lims
     try:
         recording_dirs = tuple(session.lims_path.rglob('**/Record Node*/experiment*/recording*'))
+        main_recording_dir = npc_ephys.get_single_oebin_path(session.lims_path).parent
     except:
         recording_dirs = tuple(session.npexp_path.rglob('**/Record Node*/experiment*/recording*'))
+        main_recording_dir = npc_ephys.get_single_oebin_path(session.npexp_path).parent
 
     sync_path = tuple(session.npexp_path.glob('*.sync'))[0]
     session_start, session_end = session_start_end_times(sync_path)
+    print('session start:end', session_start, ':', session_end)
     motor_locs_path = next(session.npexp_path.glob(f'{session.folder}.motor-locs.csv'))
  
     pkl_path = session.npexp_path / f'{session.folder}.stim.pkl'
@@ -347,14 +349,15 @@ def generate_session_json(session_id: str) -> None:
         iacuc_protocol=experiment_info.get('iacuc_protocol',''),
         rig_id=platform_json['rig_id'],
         subject_id=session.folder.split('_')[1],
-        data_streams=data_streams(session.npexp_path, sync_path, recording_dirs, motor_locs_path, platform_json),
+        data_streams=data_streams(session.npexp_path, sync_path, main_recording_dir, motor_locs_path, platform_json),
         stimulus_epochs=stim_epochs,
         mouse_platform_name=experiment_info.get('mouse_platform','Mouse Platform'),
         active_mouse_platform=experiment_info.get('active_mouse_platform', False),
         reward_consumed_unit='milliliter',
         notes='',
     )
-    session_json.write_standard_file()
+    session_json.write_standard_file(session.npexp_path, session.folder)
+    print(f'File created at {session.npexp_path / (str(session.folder)+"_session.json")}')
 
 
 def parse_args() -> argparse.Namespace:

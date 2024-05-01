@@ -459,8 +459,8 @@ def build_stimuluswise_table(
     seconds_to_frames,
     start_key="start_time",
     end_key="stop_time",
-    name_key="stimulus_name",
-    template_key="stimulus_type",
+    name_key="stim_name",
+    template_key="stim_type",
     block_key="stimulus_block",
     get_stimulus_name=None,
     extract_const_params_from_repr=False,
@@ -497,7 +497,7 @@ def build_stimuluswise_table(
     end_key : str, optional
         key to use for end frame indices. Defaults to 'stop_time'
     name_key : str, optional
-        key to use for stimulus name annotations. Defaults to 'stimulus_name'
+        key to use for stimulus name annotations. Defaults to 'stim_name'
     block_key : str, optional
         key to use for the 0-index position of this stimulus block
     get_stimulus_name : function | dict -> str, optional
