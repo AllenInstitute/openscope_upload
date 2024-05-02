@@ -7,6 +7,10 @@ import pandas as pd
 import utils.sync_functions as sync
 import utils.pickle_functions as pkl
 
+from pathlib import Path
+from typing import List
+
+
 DROP_PARAMS = (  # psychopy boilerplate, more or less
     "autoLog",
     "autoDraw",
@@ -35,6 +39,77 @@ BEHAVIOR_TRACKING_KEYS = ("beh_frame_received",  # Expected behavior line label 
                     "cam1_exposure",
                     "behavior_monitoring")
 
+
+def convert_filepath_caseinsensitive(filename_in):
+    return filename_in.replace('TRAINING', 'training')
+
+def enforce_df_int_typing(
+        input_df: pd.DataFrame,
+        int_columns: List[str],
+        use_pandas_type: object = False
+) -> pd.DataFrame:
+    """Enforce integer typing for columns that may have lost int typing when
+    combined into the final DataFrame.
+
+    Parameters
+    ----------
+    input_df : pandas.DataFrame
+        DataFrame with typing to enforce.
+    int_columns : list of str
+        Columns to enforce int typing and fill any NaN/None values with the
+        value set in INT_NULL in this file. Requested columns not in the
+        dataframe are ignored.
+    use_pandas_type : bool
+        Instead of filling with the value INT_NULL to enforce integer typing,
+        use the pandas type Int64. This type can have issues converting to
+        numpy/array type values.
+
+    Returns
+    -------
+    output_df : pandas.DataFrame
+        DataFrame specific columns hard typed to Int64 to allow NA values
+        without resorting to float type.
+    """
+    for col in int_columns:
+        if col in input_df.columns:
+            if use_pandas_type:
+                input_df[col] = input_df[col].astype("Int64")
+            else:
+                input_df[col] = input_df[col].fillna().astype(int)
+    return input_df
+
+
+def enforce_df_column_order(
+        input_df: pd.DataFrame,
+        column_order: List[str]
+) -> pd.DataFrame:
+    """Return the data frame but with columns ordered.
+
+    Parameters
+    ----------
+    input_df : pandas.DataFrame
+        Data frame with columns to be ordered.
+    column_order : list of str
+        Ordering of column names to enforce. Columns not specified are shifted
+        to the end of the order but retain their order amongst others not
+        specified. If a specified column is not in the DataFrame it is ignored.
+
+    Returns
+    -------
+    output_df : pandas.DataFrame
+        DataFrame the same as the input but with columns reordered.
+    """
+    # Use only columns that are in the input dataframe's columns.
+    pruned_order = []
+    for col in column_order:
+        if col in input_df.columns:
+            pruned_order.append(col)
+    # Get the full list of columns in the data frame with our ordered columns
+    # first.
+    pruned_order.extend(
+        list(set(input_df.columns).difference(set(pruned_order)))
+    )
+    return input_df[pruned_order]
 
 def seconds_to_frames(seconds, pkl_file):
     return (np.array(seconds) + pkl.get_pre_blank_sec(pkl_file)) * pkl.get_fps(pkl_file)
@@ -411,6 +486,13 @@ def apply_display_sequence(
 
     sweep_frames_table.drop(diff_key, inplace=True, axis=1)
     return sweep_frames_table
+
+
+def get_image_set_name(image_set_path: str):
+    """
+    Strips the stem from the image_set filename
+    """
+    return Path(image_set_path).stem
 
 
 def read_stimulus_name_from_path(stimulus):

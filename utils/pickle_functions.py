@@ -1,11 +1,15 @@
 import pandas as pd
 import numpy as np
 
+import pickle
+
 
 def load_pkl(path):
     data = pd.read_pickle(path)
     return data
 
+def load_img_pkl(pstream):
+    return pickle.load(pstream, encoding="bytes")
 
 def get_stimuli(pkl):
     return pkl['stimuli']
