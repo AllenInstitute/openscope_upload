@@ -1,5 +1,6 @@
 import aind_data_schema
 import aind_data_schema.core.session as session_schema
+import aind_metadata_mapper
 import argparse
 import datetime
 import io
@@ -15,6 +16,7 @@ import pandas as pd
 import pathlib as pl
 from aind_data_schema.models.modalities import Modality as schema_modalities
 from aind_data_schema.models.coordinates import Coordinates3d as schema_coordinates
+from aind_metadata_mapper.ephys.camstim_session import CamstimSession
 from utils import process_ephys_sync as stim_utils
 from utils import pickle_functions as pkl_utils
 
@@ -83,242 +85,16 @@ DEFAULT_OPTO_CONDITIONS = {
 }
 
 
-def get_available_probes(platform_json):
-    insertion_notes = platform_json['InsertionNotes']
-    if insertion_notes == {}:
-        available_probes = 'ABCDEF'
-    else:
-        available_probes = [letter for letter in 'ABCDEF' if not insertion_notes.get(f'Probe{letter}', {}).get('FailedToInsert', False)]
-    print('available probes:',available_probes)
-    return tuple(available_probes)
+def generate_data_description_json(project_name: str) -> None:
+    projects_info = pd.read_csv('./projects_info.csv')
+    print(projects_info)
+    print(projects_info[project_name])
 
 
-def manipulator_coords(probe_name, newscale_coords):
-    probe_row = newscale_coords.query(f"electrode_group == '{probe_name}'")
-    if probe_row.empty:
-        return schema_coordinates(x='0.0', y='0.0', z='0.0', unit='micrometer'), 'Coordinate info not available'
-    else:
-        x, y, z = probe_row['x'].item(), probe_row['y'].item(), probe_row['z'].item()
-    return schema_coordinates(x=x, y=y, z=z, unit='micrometer'), ''
-
-
-def ephys_modules(available_probes, motor_locs_path):
-    newscale_coords = npc_sessions.get_newscale_coordinates(motor_locs_path)
-    print(newscale_coords)
-
-    ephys_modules = []
-    for probe_letter in available_probes:
-        probe_name = f'probe{probe_letter}'
-        manipulator_coordinates, notes = manipulator_coords(probe_name, newscale_coords)
-
-        probe_module = session_schema.EphysModule(
-            assembly_name=probe_name.upper(),
-            arc_angle=0.0,
-            module_angle=0.0,
-            rotation_angle=0.0,
-            primary_targeted_structure='none',
-            ephys_probes=[session_schema.EphysProbeConfig(name=probe_name.upper())],
-            manipulator_coordinates=manipulator_coordinates,
-            notes=notes
-        )
-        ephys_modules.append(probe_module)
-    return ephys_modules
-
-
-def sync_data(sync_path):
-    return npc_sync.SyncDataset(io.BytesIO(sync_path.read_bytes()))
-
-
-def session_start_end_times(sync_path):    
-    start_timestamp = sync_data(sync_path).start_time
-    end_timestamp = sync_data(sync_path).stop_time
-    return (start_timestamp, end_timestamp)
-
-
-def ephys_stream(sync_path, recording_dirs, motor_locs_path, platform_json) -> session_schema.Stream:
-    available_probes = get_available_probes(platform_json)
-
-    start_time, _ = session_start_end_times(sync_path)
-    epmods = ephys_modules(available_probes, motor_locs_path)
-
-    times = npc_ephys.get_ephys_timing_on_sync(sync=sync_path, recording_dirs=recording_dirs)
-    ephys_timing_data = tuple(
-        timing for timing in times if \
-            (p := npc_session.extract_probe_letter(timing.device.name)) is None or p in available_probes
-    )
-
-    stream_first_time = min(timing.start_time for timing in ephys_timing_data)
-    stream_last_time = max(timing.stop_time for timing in ephys_timing_data)
-
-    return session_schema.Stream(
-        stream_start_time=start_time + datetime.timedelta(seconds=stream_first_time),
-        stream_end_time=start_time + datetime.timedelta(seconds=stream_last_time),
-        ephys_modules=epmods,
-        stick_microscopes=[],
-        stream_modalities=[schema_modalities.ECEPHYS]
-    )
-
-
-def sync_stream(sync_path):
-    sync_start, sync_end = session_start_end_times(sync_path)
-    return session_schema.Stream(
-            stream_start_time=sync_start,
-            stream_end_time=sync_end,
-            stream_modalities=[schema_modalities.BEHAVIOR],
-            daq_names=['Sync']
-    )
-
-def video_stream(npexp_path, sync_path):
-    session_start_time, _ = session_start_end_times(sync_path)
-    video_frame_times = npc_mvr.mvr.get_video_frame_times(sync_path, npexp_path)
-
-    stream_first_time = min(np.nanmin(timestamps) for timestamps in video_frame_times.values())
-    stream_last_time = max(np.nanmax(timestamps) for timestamps in video_frame_times.values())
-
-    return session_schema.Stream(
-        stream_start_time=session_start_time + datetime.timedelta(seconds=stream_first_time),
-        stream_end_time=session_start_time + datetime.timedelta(seconds=stream_last_time),
-        camera_names=['Front camera', 'Side camera', 'Eye camera'],
-        stream_modalities=[schema_modalities.BEHAVIOR_VIDEOS],
-    )
-
-
-def data_streams(npexp_path, sync_path, recording_dirs, motor_locs_path, platform_json) -> tuple[session_schema.Stream, ...]:
-    data_streams = []
-    data_streams.append(ephys_stream(sync_path, recording_dirs, motor_locs_path, platform_json))
-    data_streams.append(sync_stream(sync_path))
-    data_streams.append(video_stream(npexp_path, sync_path))
-    return tuple(data_streams)
-
-
-def epoch_from_opto_table(session, opto_table_path, sync_path):
-    stim = aind_data_schema.core.session.StimulusModality
-    session_start_time, _ = session_start_end_times(sync_path)
-
-    script_obj = aind_data_schema.models.devices.Software(
-        name=session.mtrain['regimen']['name'],
-        version='1.0',
-        url=session.mtrain['regimen']['script']
-    )
-
-    opto_table = pd.read_csv(opto_table_path)
-
-    opto_params = {}
-    for column in opto_table:
-        if column in ('start_time', 'stop_time', 'stim_name'):
-            continue
-        param_set = set(opto_table[column].dropna())
-        opto_params[column] = param_set
-
-    params_obj = session_schema.VisualStimulation(
-        stimulus_name="Optogenetic Stimulation",
-        stimulus_parameters=opto_params,
-        stimulus_template_name=[]
-    )
-
-    opto_epoch = session_schema.StimulusEpoch(
-        stimulus_start_time=session_start_time + datetime.timedelta(seconds=opto_table.start_time.iloc[0]),
-        stimulus_end_time=session_start_time + datetime.timedelta(seconds=opto_table.start_time.iloc[-1]),
-        stimulus_name="Optogenetic Stimulation",
-        software=[],
-        script=script_obj,
-        stimulus_modalities=[stim.OPTOGENETICS],
-        stimulus_parameters=[params_obj],
-    )
-
-    return opto_epoch
-
-
-def extract_stim_epochs(stim_table):
-    epochs = []
-
-    current_epoch = [None, 0.0, 0.0, {}, set()]
-    epoch_start_idx = 0
-    for current_idx, row in stim_table.iterrows():
-        # if the stim name changes, summarize current epoch's parameters and start a new epoch
-        if row['stim_name'] != current_epoch[0]:
-            for column in stim_table:
-                if column not in ('start_time', 'stop_time', 'stim_name', 'stim_type', 'frame'):
-                    param_set = set(stim_table[column][epoch_start_idx:current_idx].dropna())
-                    current_epoch[3][column] = param_set
-
-            epochs.append(current_epoch)
-            epoch_start_idx = current_idx
-            current_epoch = [row['stim_name'], row['start_time'], row['stop_time'], {}, set()]
-        # if stim name hasn't changed, we are in the same epoch, keep pushing the stop time
-        else:
-            current_epoch[2] = row['stop_time']
-
-        # if this row is a movie or image set, record it's stim name in the epoch's templates entry
-        if 'image' in row.get('stim_type','').lower() or 'movie' in row.get('stim_type','').lower():
-            current_epoch[4].add(row['stim_name'])
-
-    # slice off dummy epoch from beginning
-    return epochs[1:]
-
-
-def epochs_from_stim_table(session, pkl_path, stim_table_path, sync_path):
-    stim = aind_data_schema.core.session.StimulusModality
-    session_start_time, _ = session_start_end_times(sync_path)
-
-    software_obj = aind_data_schema.models.devices.Software(
-        name='camstim',
-        version=pkl_utils.load_pkl(pkl_path)['platform']['camstim'].split('+')[0],
-        url='https://eng-gitlab.corp.alleninstitute.org/braintv/camstim'
-    )
-
-    script_obj = aind_data_schema.models.devices.Software(
-        name=session.mtrain['regimen']['name'],
-        version='1.0',
-        url=session.mtrain['regimen']['script']
-    )
-
-    schema_epochs = []
-    for epoch_name, epoch_start, epoch_end, stim_params, stim_template_names in extract_stim_epochs(pd.read_csv(stim_table_path)):
-        params_obj = session_schema.VisualStimulation(
-            stimulus_name=epoch_name,
-            stimulus_parameters=stim_params,
-            stimulus_template_name=stim_template_names
-        )
-
-        epoch_obj = session_schema.StimulusEpoch(
-            stimulus_start_time=session_start_time + datetime.timedelta(seconds=epoch_start),
-            stimulus_end_time=session_start_time + datetime.timedelta(seconds=epoch_end),
-            stimulus_name=epoch_name,
-            software=[software_obj],
-            script=script_obj,
-            stimulus_modalities=[stim.VISUAL],
-            stimulus_parameters=[params_obj],
-            # stimulus_device_names=get_device_names(epoch_name),
-            # speaker_config=get_speaker_config(epoch_name),
-            # reward_consumed_during_epoch=get_reward_consumed(epoch_name),
-            # reward_consumed_unit="milliliter",
-            # trials_total=get_num_trials(epoch_name),
-            # trials_finished=get_num_trials(epoch_name),
-            # trials_rewarded=get_num_trials_rewarded(epoch_name),
-            # notes=nwb_epoch.notes.item()
-        )
-        schema_epochs.append(epoch_obj)
-
-    return schema_epochs
-
-
-def generate_session_json(session_id: str) -> None:
+def generate_session_json(session_id: str) -> str:
     session = np_session.Session(session_id)
 
-    # sometimes data files are deleted on npexp, better to try files on lims
-    try:
-        recording_dirs = tuple(session.lims_path.rglob('**/Record Node*/experiment*/recording*'))
-        main_recording_dir = npc_ephys.get_single_oebin_path(session.lims_path).parent
-    except:
-        recording_dirs = tuple(session.npexp_path.rglob('**/Record Node*/experiment*/recording*'))
-        main_recording_dir = npc_ephys.get_single_oebin_path(session.npexp_path).parent
-
-    sync_path = tuple(session.npexp_path.glob('*.sync'))[0]
-    session_start, session_end = session_start_end_times(sync_path)
-    print('session start:end', session_start, ':', session_end)
-    motor_locs_path = next(session.npexp_path.glob(f'{session.folder}.motor-locs.csv'))
- 
+    sync_path = session.npexp_path / f'{session.folder}.sync' 
     pkl_path = session.npexp_path / f'{session.folder}.stim.pkl'
     stim_table_path = session.npexp_path / f'{session.folder}_stim_epochs.csv' 
     opto_pkl_path = session.npexp_path / f'{session.folder}.opto.pkl'
@@ -328,37 +104,26 @@ def generate_session_json(session_id: str) -> None:
     platform_json = json.loads(platform_path.read_text())
     project_name = platform_json['project']
     experiment_info = json.loads(pl.Path(__file__).with_name('experiment_info.json').read_text())
-
+    
     if not stim_table_path.exists():
         print("building stim table")
         stim_utils.build_stimulus_table(pkl_path, sync_path, stim_table_path)
-    print("getting stim epochs")
-    stim_epochs = epochs_from_stim_table(session, pkl_path, stim_table_path, sync_path)
-
     if opto_pkl_path.exists() and not opto_table_path.exists():
+        print("building opto table")
         opto_conditions = experiment_info[project_name].get('opto_conditions', DEFAULT_OPTO_CONDITIONS)
         stim_utils.build_optogenetics_table(opto_pkl_path, sync_path, opto_conditions, opto_table_path)
 
-    if opto_table_path.exists():
-        stim_epochs.append(epoch_from_opto_table(session, opto_table_path, sync_path))
+    session_settings = experiment_info[project_name]
+    session_mapper = CamstimSession(session_id, session_settings)
+    session_mapper.generate_session_json()
+    session_mapper.write_session_json()
 
-    session_json = session_schema.Session(
-        experimenter_full_name=[platform_json['operatorID'].replace('.', ' ').title()],
-        session_start_time=session_start,
-        session_end_time=session_end,
-        session_type=experiment_info.get('session_type', ''),
-        iacuc_protocol=experiment_info.get('iacuc_protocol',''),
-        rig_id=platform_json['rig_id'],
-        subject_id=session.folder.split('_')[1],
-        data_streams=data_streams(session.npexp_path, sync_path, main_recording_dir, motor_locs_path, platform_json),
-        stimulus_epochs=stim_epochs,
-        mouse_platform_name=experiment_info.get('mouse_platform','Mouse Platform'),
-        active_mouse_platform=experiment_info.get('active_mouse_platform', False),
-        reward_consumed_unit='milliliter',
-        notes='',
-    )
-    session_json.write_standard_file(session.npexp_path)
-    print(f'File created at {str(session.npexp_path)}/session.json')
+    return project_name
+
+
+def generate_jsons(session_id: str) -> None:
+    project_name = generate_session_json(session_id)
+    generate_data_description_json(project_name)
 
 
 def parse_args() -> argparse.Namespace:
