@@ -461,11 +461,7 @@ def build_stimuluswise_table(
     end_key="stop_time",
     name_key="stim_name",
     template_key="stim_type",
-<<<<<<< HEAD
-    block_key="stimulus_block",
-=======
     block_key="stim_block",
->>>>>>> e2d078e064fd3b5044ae1517e0a5b6afea55a907
     get_stimulus_name=None,
     extract_const_params_from_repr=False,
     drop_const_params=DROP_PARAMS,
