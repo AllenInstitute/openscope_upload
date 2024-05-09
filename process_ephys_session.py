@@ -20,80 +20,117 @@ from aind_metadata_mapper.ephys.camstim_session import CamstimSession
 from utils import process_ephys_sync as stim_utils
 from utils import pickle_functions as pkl_utils
 
+from aind_data_schema.core.data_description import Funding, DataDescription
+from aind_data_schema.models.organizations import Organization
+from aind_data_schema.models.pid_names import PIDName
+from aind_data_schema.models.platforms import Platform
+
+
 # defaults
 DEFAULT_OPTO_CONDITIONS = {
-    "0": {
-        "duration": .01,
-        "name": "1Hz_10ms",
-        "condition": "10 ms pulse at 1 Hz"
+    '0': {
+        'duration': .01,
+        'name': '1Hz_10ms',
+        'condition': '10 ms pulse at 1 Hz'
     },
-    "1": {
-        "duration": .002,
-        "name": "1Hz_2ms",
-        "condition": "2 ms pulse at 1 Hz"
+    '1': {
+        'duration': .002,
+        'name': '1Hz_2ms',
+        'condition': '2 ms pulse at 1 Hz'
     },
-    "2": {
-        "duration": 1.0,
-        "name": "5Hz_2ms",
-        "condition": "2 ms pulses at 5 Hz"
+    '2': {
+        'duration': 1.0,
+        'name': '5Hz_2ms',
+        'condition': '2 ms pulses at 5 Hz'
     },
-    "3": {
-        "duration": 1.0,
-        "name": "10Hz_2ms",
-        "condition": "2 ms pulses at 10 Hz'"
+    '3': {
+        'duration': 1.0,
+        'name': '10Hz_2ms',
+        'condition': '2 ms pulses at 10 Hz'
     },
-    "4": {
-        "duration": 1.0,
-        "name": "20Hz_2ms",
-        "condition": "2 ms pulses at 20 Hz"
+    '4': {
+        'duration': 1.0,
+        'name': '20Hz_2ms',
+        'condition': '2 ms pulses at 20 Hz'
     },
-    "5": {
-        "duration": 1.0,
-        "name": "30Hz_2ms",
-        "condition": "2 ms pulses at 30 Hz"
+    '5': {
+        'duration': 1.0,
+        'name': '30Hz_2ms',
+        'condition': '2 ms pulses at 30 Hz'
     },
-    "6": {
-        "duration": 1.0,
-        "name": "40Hz_2ms",
-        "condition": "2 ms pulses at 40 Hz"
+    '6': {
+        'duration': 1.0,
+        'name': '40Hz_2ms',
+        'condition': '2 ms pulses at 40 Hz'
     },
-    "7": {
-        "duration": 1.0,
-        "name": "50Hz_2ms",
-        "condition": "2 ms pulses at 50 Hz"
+    '7': {
+        'duration': 1.0,
+        'name': '50Hz_2ms',
+        'condition': '2 ms pulses at 50 Hz'
     },
-    "8": {
-        "duration": 1.0,
-        "name": "60Hz_2ms",
-        "condition": "2 ms pulses at 60 Hz"
+    '8': {
+        'duration': 1.0,
+        'name': '60Hz_2ms',
+        'condition': '2 ms pulses at 60 Hz'
     },
-    "9": {
-        "duration": 1.0,
-        "name": "80Hz_2ms",
-        "condition": "2 ms pulses at 80 Hz"
+    '9': {
+        'duration': 1.0,
+        'name': '80Hz_2ms',
+        'condition': '2 ms pulses at 80 Hz'
     },
-    "10": {
-        "duration": 1.0,
-        "name": "square_1s",
-        "condition": "1 second square pulse: continuously on for 1s"
+    '10': {
+        'duration': 1.0,
+        'name': 'square_1s',
+        'condition': '1 second square pulse: continuously on for 1s'
     },
-    "11": {
-        "duration": 1.0,
-        "name": "cosine_1s",
-        "condition": "cosine pulse"
+    '11': {
+        'duration': 1.0,
+        'name': 'cosine_1s',
+        'condition': 'cosine pulse'
     },
 }
 
+organization_map = {
+    'NINDS': Organization.NINDS
+}
 
-def generate_data_description_json(project_name: str) -> None:
-    projects_info = pd.read_csv('./projects_info.csv')
+
+modality_map = {
+    'ephys': schema_modalities.ECEPHYS,
+    'behavior-videos': schema_modalities.BEHAVIOR_VIDEOS,
+    'behavior': schema_modalities.BEHAVIOR,
+    'ophys': schema_modalities.POPHYS
+}
+
+
+def generate_data_description_json(project_name: str, session: np_session.Session) -> None:
+    subject_id = session.folder.split('_')[1]
+    projects_info = pd.read_csv('./projects_info.csv', index_col='project_name')
     print(projects_info)
-    print(projects_info[project_name])
+    project_info = projects_info.loc[project_name]
+
+    funding_schemas = [Funding(funder=Organization.AI)]
+    for funding_source in project_info['funding_sources'].split(','):
+        name, grant_num = funding_source.split(' ',maxsplit=1)
+        funding_schemas.append(Funding(funder=organization_map[name], grant_number=grant_num))
+
+    create_time = datetime.datetime.now()
+    data_description = DataDescription(
+        label=project_name,
+        license=project_info['license'],
+        platform=Platform.ECEPHYS,
+        subject_id=subject_id,
+        creation_time=create_time,
+        institution=Organization.AIND,
+        funding_source=funding_schemas,
+        data_level='derived',
+        investigators=[PIDName(name=name) for name in project_info['investigators'].split(',')],
+        modality=[modality_map[mod] for mod in project_info['modalities'].split(',')]
+    )
+    data_description.write_standard_file(session.npexp_path)
 
 
-def generate_session_json(session_id: str) -> str:
-    session = np_session.Session(session_id)
-
+def generate_session_json(session_id: str, session: np_session.Session) -> str:    
     sync_path = session.npexp_path / f'{session.folder}.sync' 
     pkl_path = session.npexp_path / f'{session.folder}.stim.pkl'
     stim_table_path = session.npexp_path / f'{session.folder}_stim_epochs.csv' 
@@ -106,10 +143,10 @@ def generate_session_json(session_id: str) -> str:
     experiment_info = json.loads(pl.Path(__file__).with_name('experiment_info.json').read_text())
     
     if not stim_table_path.exists():
-        print("building stim table")
+        print('building stim table')
         stim_utils.build_stimulus_table(pkl_path, sync_path, stim_table_path)
     if opto_pkl_path.exists() and not opto_table_path.exists():
-        print("building opto table")
+        print('building opto table')
         opto_conditions = experiment_info[project_name].get('opto_conditions', DEFAULT_OPTO_CONDITIONS)
         stim_utils.build_optogenetics_table(opto_pkl_path, sync_path, opto_conditions, opto_table_path)
 
@@ -122,8 +159,9 @@ def generate_session_json(session_id: str) -> str:
 
 
 def generate_jsons(session_id: str) -> None:
-    project_name = generate_session_json(session_id)
-    generate_data_description_json(project_name)
+    session = np_session.Session(session_id)
+    project_name = generate_session_json(session_id, session)
+    generate_data_description_json(project_name, session)
 
 
 def parse_args() -> argparse.Namespace:
@@ -133,7 +171,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    generate_session_json(**vars(parse_args()))
+    generate_jsons(**vars(parse_args()))
 
 
 if __name__ == '__main__':
