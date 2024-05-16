@@ -177,8 +177,19 @@ def generate_session_json(session_id: str, session: np_session.Session, overwrit
     return project_name
 
 
+def fetch_rig_json(session: np_session.Session):
+    import requests
+    rig_name = 'NP1'
+    rig_endpoint = 'http://aind-metadata-service/rig'
+    res = requests.get(f'{rig_endpoint}/{rig_name}')
+    print(res)
+
+
 def generate_jsons(session_ids: str, force: bool = False, no_upload: bool = False, overwrite: bool = False) -> None:
     for session_id in session_ids:
+        print(f'\ngenerating jsons for session {session_id}')
+        session = np_session.Session(session_id)
+        # fetch_rig_json(session)
         print(f'\ngenerating jsons for session {session_id}')
         session = np_session.Session(session_id)
         project_name = generate_session_json(session_id, session, overwrite)
