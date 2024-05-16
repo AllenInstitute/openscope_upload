@@ -84,7 +84,6 @@ organization_map = {
     'NINDS': Organization.NINDS
 }
 
-
 modality_map = {
     'ephys': schema_modalities.ECEPHYS,
     'behavior-videos': schema_modalities.BEHAVIOR_VIDEOS,
