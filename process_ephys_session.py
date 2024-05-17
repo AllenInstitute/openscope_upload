@@ -143,25 +143,11 @@ def generate_data_description_json(project_name: str, session: np_session.Sessio
     data_description.write_standard_file(session.npexp_path)
 
 
-def generate_session_json(session_id: str, session: np_session.Session, overwrite: bool = False) -> str:    
-    sync_path = session.npexp_path / f'{session.folder}.sync' 
-    pkl_path = session.npexp_path / f'{session.folder}.stim.pkl'
-    stim_table_path = session.npexp_path / f'{session.folder}_stim_epochs.csv' 
-    opto_pkl_path = session.npexp_path / f'{session.folder}.opto.pkl'
-    opto_table_path = session.npexp_path / f'{session.folder}_opto_epochs.csv' 
- 
+def generate_session_json(session_id: str, session: np_session.Session, overwrite: bool = False) -> str:
     platform_path = next(session.npexp_path.glob(f'{session.folder}_platform*.json'))
     platform_json = json.loads(platform_path.read_text())
     project_name = platform_json['project']
     experiment_info = json.loads(pl.Path(__file__).with_name('experiment_info.json').read_text())
-
-    if not stim_table_path.exists():
-        print('building stim table')
-        stim_utils.build_stimulus_table(pkl_path, sync_path, stim_table_path)
-    if opto_pkl_path.exists() and not opto_table_path.exists():
-        print('building opto table')
-        opto_conditions = experiment_info[project_name].get('opto_conditions', DEFAULT_OPTO_CONDITIONS)
-        stim_utils.build_optogenetics_table(opto_pkl_path, sync_path, opto_conditions, opto_table_path)
 
     if (session.npexp_path / 'session.json').exists():
         print('session.json already exists')
@@ -170,6 +156,8 @@ def generate_session_json(session_id: str, session: np_session.Session, overwrit
         print('overwriting')
 
     session_settings = experiment_info[project_name]
+    if overwrite:
+        session_settings['overwrite_tables'] = True
     session_mapper = CamstimEphysSession(session_id, session_settings)
     session_mapper.generate_session_json()
     session_mapper.write_session_json()
@@ -181,9 +169,9 @@ def generate_jsons(session_ids: str, force: bool = False, no_upload: bool = Fals
     for session_id in session_ids:
         print(f'\ngenerating jsons for session {session_id}')
         session = np_session.Session(session_id)
-        project_name = generate_session_json(session_id, session, overwrite)
-        generate_data_description_json(project_name, session, overwrite)
-        generate_rig_json(session, overwrite)
+        project_name = generate_session_json(session_id, session, overwrite=overwrite)
+        generate_data_description_json(project_name, session, overwrite=overwrite)
+        generate_rig_json(session, overwrite=overwrite)
         if not no_upload:
             np_codeocean.upload_session(session_id, force=force)
 
