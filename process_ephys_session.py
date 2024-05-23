@@ -187,7 +187,6 @@ def fetch_rig_json(session: np_session.Session):
 
 def generate_jsons(session_ids: str, force: bool = False, no_upload: bool = False, overwrite: bool = False) -> None:
     for session_id in session_ids:
-        print(f'\ngenerating jsons for session {session_id}')
         session = np_session.Session(session_id)
         # fetch_rig_json(session)
         print(f'\ngenerating jsons for session {session_id}')
