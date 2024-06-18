@@ -11,7 +11,7 @@ from aind_data_schema_models.modalities import Modality as schema_modalities
 from aind_data_schema_models.organizations import Organization
 from aind_data_schema_models.pid_names import PIDName
 from aind_data_schema_models.platforms import Platform
-from aind_metadata_mapper.ephys.camstim_ephys_session import CamstimEphysSession
+from aind_metadata_mapper.open_ephys.camstim_ephys_session import CamstimEphysSession
 
 from utils import process_ephys_sync as stim_utils
 
