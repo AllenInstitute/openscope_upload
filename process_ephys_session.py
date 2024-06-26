@@ -91,6 +91,8 @@ modality_map = {
     'ophys': schema_modalities.POPHYS
 }
 
+USER_EMAIL = "carter.peene@alleninstitute.org"
+
 
 def generate_rig_json(session: np_session.Session, overwrite: bool = False):
     if (session.npexp_path / 'rig.json').exists():
@@ -183,7 +185,7 @@ def generate_jsons(session_ids: str, force: bool = False, no_upload: bool = Fals
         generate_data_description_json(project_name, session, overwrite=overwrite)
         generate_rig_json(session, overwrite=overwrite)
         if not no_upload:
-            np_codeocean.upload_session(session_id, force=force)
+            np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL)
 
 
 def parse_args() -> argparse.Namespace:
