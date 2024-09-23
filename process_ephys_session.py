@@ -142,7 +142,7 @@ def generate_data_description_json(project_name: str, session: np_session.Sessio
     )
     data_description.write_standard_file(session.npexp_path)
 
-
+from pathlib import Path
 def generate_session_json(session_id: str, session: np_session.Session, overwrite: bool = False) -> str:
     platform_path = next(session.npexp_path.glob(f'{session.folder}_platform*.json'))
     platform_json = json.loads(platform_path.read_text())
@@ -173,16 +173,16 @@ def fetch_rig_json(session: np_session.Session):
     print(res)
 
 
-def generate_jsons(session_ids: str, force: bool = False, no_upload: bool = False, overwrite: bool = False) -> None:
+def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool = False, overwrite: bool = False) -> None:
     for session_id in session_ids:
-        session = np_session.Session(session_id)
-        # fetch_rig_json(session)
+        # fetch_rig_json(session) # do this when slims is up and running
         print(f'\ngenerating jsons for session {session_id}')
         session = np_session.Session(session_id)
         project_name = generate_session_json(session_id, session, overwrite=overwrite)
         generate_data_description_json(project_name, session, overwrite=overwrite)
         generate_rig_json(session, overwrite=overwrite)
         if not no_upload:
+            print('running upload')
             np_codeocean.upload_session(session_id, force=force)
 
 

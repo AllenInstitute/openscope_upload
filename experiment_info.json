@@ -8,5 +8,15 @@
         "description": "OpenScope's Temporal Barcoding project",
         "iacuc_protocol": "2117",
         "session_type": ""
+    },
+    "NeuropixelVisualBehavior": {
+        "description": "Neuropixels Visual Behavior",
+        "iacuc_protocol": "2304",
+        "session_type": ""
+    },
+    "OpenScopeLoop": {
+        "description": "OpenScope's Loop project",
+        "iacuc_protocol": "2117",
+        "session_type": ""
     }
 }
