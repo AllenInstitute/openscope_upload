@@ -11,7 +11,12 @@ from aind_data_schema_models.modalities import Modality as schema_modalities
 from aind_data_schema_models.organizations import Organization
 from aind_data_schema_models.pid_names import PIDName
 from aind_data_schema_models.platforms import Platform
-from aind_metadata_mapper.open_ephys.camstim_ephys_session import CamstimEphysSession
+
+from aind_metadata_mapper.models import SessionSettings, JobSettings as GatherMetadataJobSettings
+from aind_metadata_mapper.open_ephys.models import JobSettings as CamstimEphysSessionSettings
+
+
+from aind_metadata_mapper.open_ephys.camstim_ephys_session import CamstimEphysSessionEtl
 
 from utils import process_ephys_sync as stim_utils
 
@@ -94,62 +99,69 @@ modality_map = {
 USER_EMAIL = "carter.peene@alleninstitute.org"
 
 
-def generate_rig_json(session: np_session.Session, overwrite: bool = False):
-    if (session.npexp_path / 'rig.json').exists():
-        print('rig.json already exists')
-        if not overwrite:
-            return
-        print('overwriting')
+# def generate_rig_json(session: np_session.Session, overwrite: bool = False):
+#     if (session.npexp_path / 'rig.json').exists():
+#         print('rig.json already exists')
+#         if not overwrite:
+#             return
+#         print('overwriting')
 
-    platform_path = next(session.npexp_path.glob(f'{session.folder}_platform*.json'))
-    platform_json = json.loads(platform_path.read_text())
-    rig_id = platform_json['rig_id']
+#     platform_path = next(session.npexp_path.glob(f'{session.folder}_platform*.json'))
+#     platform_json = json.loads(platform_path.read_text())
+#     rig_id = platform_json['rig_id']
 
-    rig_json_template = json.loads((pl.Path(__file__).parent / 'openscope_rig.json').read_text())
-    rig_json_template['rig_id'] = rig_id
-    rig_json_template['modification_date'] = str(datetime.date.today())
+#     rig_json_template = json.loads((pl.Path(__file__).parent / 'openscope_rig.json').read_text())
+#     rig_json_template['rig_id'] = rig_id
+#     rig_json_template['modification_date'] = str(datetime.date.today())
 
-    with open(session.npexp_path / 'rig.json', 'w', encoding='utf-8') as f:
-        json.dump(rig_json_template, f, ensure_ascii=False, indent=4)
+#     with open(session.npexp_path / 'rig.json', 'w', encoding='utf-8') as f:
+#         json.dump(rig_json_template, f, ensure_ascii=False, indent=4)
 
 
-def generate_data_description_json(project_name: str, session: np_session.Session, overwrite: bool = False) -> None:
-    if (session.npexp_path / 'data_description.json').exists():
-        print('data_description.json already exists')
-        if not overwrite:
-            return
-        print('overwriting')
+# def generate_data_description_json(project_name: str, session: np_session.Session, overwrite: bool = False) -> None:
+#     if (session.npexp_path / 'data_description.json').exists():
+#         print('data_description.json already exists')
+#         if not overwrite:
+#             return
+#         print('overwriting')
     
-    subject_id = session.folder.split('_')[1]
-    projects_info = pd.read_csv(pl.Path(__file__).parent / 'projects_info.csv', index_col='project_name')
-    project_info = projects_info.loc[project_name]
+#     subject_id = session.folder.split('_')[1]
+#     projects_info = pd.read_csv(pl.Path(__file__).parent / 'projects_info.csv', index_col='project_name')
+#     project_info = projects_info.loc[project_name]
 
-    funding_schemas = [Funding(funder=Organization.AI)]
-    for funding_source in project_info['funding_sources'].split(','):
-        name, grant_num = funding_source.split(' ',maxsplit=1)
-        funding_schemas.append(Funding(funder=organization_map[name], grant_number=grant_num))
+#     funding_schemas = [Funding(funder=Organization.AI)]
+#     for funding_source in project_info['funding_sources'].split(','):
+#         name, grant_num = funding_source.split(' ',maxsplit=1)
+#         funding_schemas.append(Funding(funder=organization_map[name], grant_number=grant_num))
 
-    create_time = datetime.datetime.now()
-    data_description = DataDescription(
-        label=project_name,
-        license=project_info['license'],
-        platform=Platform.ECEPHYS,
-        subject_id=subject_id,
-        creation_time=create_time,
-        institution=Organization.AIND,
-        funding_source=funding_schemas,
-        data_level='derived',
-        investigators=[PIDName(name=name) for name in project_info['investigators'].split(',')],
-        modality=[modality_map[mod] for mod in project_info['modalities'].split(',')]
-    )
-    data_description.write_standard_file(session.npexp_path)
+#     create_time = datetime.datetime.now()
+#     data_description = DataDescription(
+#         label=project_name,
+#         license=project_info['license'],
+#         platform=Platform.ECEPHYS,
+#         subject_id=subject_id,
+#         creation_time=create_time,
+#         institution=Organization.AIND,
+#         funding_source=funding_schemas,
+#         data_level='derived',
+#         investigators=[PIDName(name=name) for name in project_info['investigators'].split(',')],
+#         modality=[modality_map[mod] for mod in project_info['modalities'].split(',')]
+#     )
+#     data_description.write_standard_file(session.npexp_path)
 
 
 def generate_session_json(session_id: str, session: np_session.Session, overwrite: bool = False) -> str:
     platform_path = next(session.npexp_path.glob(f'{session.folder}_platform*.json'))
     platform_json = json.loads(platform_path.read_text())
     project_name = platform_json['project']
-    experiment_info = json.loads(pl.Path(__file__).with_name('experiment_info.json').read_text())
+    # experiment_info = json.loads(pl.Path(__file__).with_name('experiment_info.json').read_text())
+
+    print(project_name)
+    projects_info = pd.read_csv(pl.Path(__file__).parent / 'projects_info.csv', index_col='project_name')
+    
+    print(projects_info)
+    project_info = projects_info.loc[project_name]
+
 
     if (session.npexp_path / 'session.json').exists():
         print('session.json already exists')
@@ -157,10 +169,10 @@ def generate_session_json(session_id: str, session: np_session.Session, overwrit
             return project_name
         print('overwriting')
 
-    session_settings = experiment_info[project_name]
+    session_settings = project_info[project_name]
     if overwrite:
         session_settings['overwrite_tables'] = True
-    session_mapper = CamstimEphysSession(session_id, session_settings)
+    session_mapper = CamstimEphysSessionEtl(session_id, session_settings)
     session_mapper.generate_session_json()
     session_mapper.write_session_json()
 
@@ -180,12 +192,38 @@ def generate_jsons(session_ids: str, force: bool = False, no_upload: bool = Fals
         session = np_session.Session(session_id)
         # fetch_rig_json(session)
         print(f'\ngenerating jsons for session {session_id}')
+        print(session.npexp_path)
         session = np_session.Session(session_id)
-        project_name = generate_session_json(session_id, session, overwrite=overwrite)
-        generate_data_description_json(project_name, session, overwrite=overwrite)
-        generate_rig_json(session, overwrite=overwrite)
-        if not no_upload:
-            np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL)
+        # project_name = generate_session_json(session_id, session, overwrite=overwrite)
+        # generate_data_description_json(project_name, session, overwrite=overwrite)
+        # generate_rig_json(session, overwrite=overwrite)
+
+        platform_path = next(session.npexp_path.glob(f'{session.folder}_platform*.json'))
+        platform_json = json.loads(platform_path.read_text())
+        project_name = platform_json['project']
+
+        projects_info = pd.read_csv(pl.Path(__file__).parent / 'projects_info.csv', index_col='project_name')
+        project_info = projects_info.loc[project_name]
+
+        openscope_session_settings = CamstimEphysSessionSettings(
+            session_type="ecephys",
+            project_name=project_name,
+            iacuc_protocol=str(project_info["iacuc_protocol"]),
+            description=project_info["description"],
+            overwrite_tables=True,
+            mtrain_server="http://mtrain:5000",
+            session_id=session_id,
+            input_source=session.npexp_path,
+            output_directory=session.npexp_path
+        )
+        session_mapper = CamstimEphysSessionEtl(openscope_session_settings)
+        session_mapper.run_job()
+
+
+        # session_settings = SessionSettings(job_settings=openscope_session_settings)
+        # metadata_job_settings = GatherMetadataJobSettings(directory_to_write_to="stage", session_settings=session_settings)
+
+        # np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, metadata_configs=metadata_job_settings)
 
 
 def parse_args() -> argparse.Namespace:
