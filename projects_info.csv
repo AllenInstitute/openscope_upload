@@ -2,4 +2,5 @@ project_name,license,platform,institution,funding_sources,investigators,modaliti
 OpenScopeVision2Hippocampus,CC-BY-4.0,ecephys,AI,NINDS U24 NS113646,"Mayank Mehta,Jerome Lecoq","ephys","2117","","OpenScope's Vision 2 Hippocampus project"
 OpenScopeTemporalBarcode,CC-BY-4.0,ecephys,AI,NINDS U24 NS113646,"Pamela Reinagel,Jerome Lecoq","ephys","2117","","OpenScope's Temporal Barcoding project"
 OpenScopeSequenceLearning,CC-BY-4.0,ecephys,AI,NINDS U24 NS113646,"Michael J. Berry,Jerome Lecoq","ephys","2117","","OpenScope's Sequence Learning project"
+OpenScopeLoop,CC-BY-4.0,ecephys,AI,NINDS U24 NS113646,"Yaniv Ziv,Jerome Lecoq","ephys","2117","","OpenScope's Loop Project"
 OpenScopePsycode,CC-BY-4.0,ecephys,AI,NINDS U24 NS113646,"Torben Ott,Jerome Lecoq","ephys","2117","","OpenScope's Psycode project"

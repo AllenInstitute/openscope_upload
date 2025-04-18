@@ -169,10 +169,13 @@ def generate_session_json(session_id: str, session: np_session.Session, overwrit
             return project_name
         print('overwriting')
 
-    session_settings = project_info[project_name]
+    # session_settings = project_info[project_name]
+    session_settings = project_info
+    print("session settings",session_settings)
     if overwrite:
         session_settings['overwrite_tables'] = True
-    session_mapper = CamstimEphysSessionEtl(session_id, session_settings)
+    session_settings["session_id"] = session_id
+    session_mapper = CamstimEphysSessionEtl(session_settings)
     session_mapper.generate_session_json()
     session_mapper.write_session_json()
 
@@ -187,12 +190,12 @@ def fetch_rig_json(session: np_session.Session):
     print(res)
 
 
-def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool = False, overwrite: bool = False) -> None:
+def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool = False, overwrite: bool = False, test_upload: bool = False) -> None:
     for session_id in session_ids:
         # fetch_rig_json(session) # do this when slims is up and running
         print(f'\ngenerating jsons for session {session_id}')
-        print(session.npexp_path)
         session = np_session.Session(session_id)
+        print(session.npexp_path)
         # project_name = generate_session_json(session_id, session, overwrite=overwrite)
         # generate_data_description_json(project_name, session, overwrite=overwrite)
         # generate_rig_json(session, overwrite=overwrite)
@@ -203,7 +206,7 @@ def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool 
 
         projects_info = pd.read_csv(pl.Path(__file__).parent / 'projects_info.csv', index_col='project_name')
         project_info = projects_info.loc[project_name]
-
+        
         openscope_session_settings = CamstimEphysSessionSettings(
             session_type="ecephys",
             project_name=project_name,
@@ -218,11 +221,13 @@ def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool 
         session_mapper = CamstimEphysSessionEtl(openscope_session_settings)
         session_mapper.run_job()
 
-
-        # session_settings = SessionSettings(job_settings=openscope_session_settings)
-        # metadata_job_settings = GatherMetadataJobSettings(directory_to_write_to="stage", session_settings=session_settings)
-
-        # np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, metadata_configs=metadata_job_settings)
+        session_settings = SessionSettings(job_settings=openscope_session_settings)
+        metadata_job_settings = GatherMetadataJobSettings(directory_to_write_to="stage", session_settings=session_settings)
+        np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, metadata_configs=metadata_job_settings)
+        if not no_upload:
+            np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, test=test_upload)
+        if no_upload:
+            print("not uploading!")
 
 
 def parse_args() -> argparse.Namespace:
@@ -231,6 +236,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--no_upload', action='store_true', help='Don\'t run an upload job, just generate metadata files on npexp')
     parser.add_argument('--force', action='store_true', help="enable `force_cloud_sync` option, re-uploading and re-making raw asset even if data exists on S3")
     parser.add_argument('--overwrite', action='store_true', help='overwrite metadata files that already exist')
+    parser.add_argument('--test_upload', action='store_true', help='Run a test upload to the aind data transfer dev endpoint')
     return parser.parse_args()
 
 
