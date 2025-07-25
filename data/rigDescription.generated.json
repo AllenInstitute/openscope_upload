@@ -1,0 +1,123 @@
+{
+    "describedBy": "https://raw.githubusercontent.com/AllenNeuralDynamics/aind-data-schema/main/src/aind_data_schema/core/instrument.py",
+    "schema_version": "1.0.3",
+    "instrument_id": "OPHYS1",
+    "modification_date": "2023-01-04",
+    "instrument_type": "Two photon",
+    "manufacturer": {
+        "name": "Other",
+        "abbreviation": null,
+        "registry": null,
+        "registry_identifier": null
+    },
+    "temperature_control": true,
+    "humidity_control": true,
+    "optical_tables": [],
+    "enclosure": null,
+    "objectives": [
+        {
+            "device_type": "Objective",
+            "name": "Leica Objective",
+            "serial_number": "0119",
+            "manufacturer": {
+                "name": "Leica",
+                "abbreviation": null,
+                "registry": null,
+                "registry_identifier": null
+            },
+            "model": "507704",
+            "path_to_cad": null,
+            "port_index": null,
+            "additional_settings": {},
+            "notes": null,
+            "numerical_aperture": "1",
+            "magnification": "20",
+            "immersion": "water",
+            "objective_type": null
+        }
+    ],
+    "detectors": [
+        {
+            "device_type": "Detector",
+            "name": "Hamamatsu Detector",
+            "serial_number": "16D-001",
+            "manufacturer": {
+                "name": "Hamamatsu",
+                "abbreviation": null,
+                "registry": {
+                    "name": "Research Organization Registry",
+                    "abbreviation": "ROR"
+                },
+                "registry_identifier": "03natb733"
+            },
+            "model": "C13366-5286",
+            "path_to_cad": null,
+            "port_index": null,
+            "additional_settings": {},
+            "notes": "Type and data interface are 'other' per rigDescription.json.",
+            "detector_type": "Other",
+            "data_interface": "Other",
+            "cooling": "Air",
+            "computer_name": null,
+            "frame_rate": null,
+            "frame_rate_unit": "hertz",
+            "immersion": null,
+            "chroma": null,
+            "sensor_width": null,
+            "sensor_height": null,
+            "size_unit": "pixel",
+            "sensor_format": null,
+            "sensor_format_unit": null,
+            "bit_depth": null,
+            "bin_mode": "None",
+            "bin_width": null,
+            "bin_height": null,
+            "bin_unit": "pixel",
+            "gain": null,
+            "crop_offset_x": null,
+            "crop_offset_y": null,
+            "crop_width": null,
+            "crop_height": null,
+            "crop_unit": "pixel",
+            "recording_software": null,
+            "driver": null,
+            "driver_version": null
+        }
+    ],
+    "light_sources": [
+        {
+            "device_type": "Laser",
+            "name": "Tangerine HP2",
+            "serial_number": "4175",
+            "manufacturer": {
+                "name": "Other",
+                "abbreviation": null,
+                "registry": null,
+                "registry_identifier": null
+            },
+            "model": "Tangerine HP2",
+            "path_to_cad": null,
+            "port_index": null,
+            "additional_settings": {},
+            "notes": "Amplitude",
+            "wavelength": 1000,
+            "wavelength_unit": "nanometer",
+            "maximum_power": "55000",
+            "power_unit": "milliwatt",
+            "coupling": "Free-space",
+            "coupling_efficiency": null,
+            "coupling_efficiency_unit": "percent",
+            "item_number": null
+        }
+    ],
+    "lenses": [],
+    "fluorescence_filters": [],
+    "motorized_stages": [],
+    "scanning_stages": [],
+    "additional_devices": [],
+    "calibration_date": "2023-01-04",
+    "calibration_data": "N/A",
+    "com_ports": [],
+    "daqs": [],
+    "notes": "Manufacturer is 'Other' per rigDescription.json. Location: 443."
+}

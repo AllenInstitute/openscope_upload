@@ -107,11 +107,14 @@ def get_concatenated_traces(exp, dmd, trace_type1, trace_type2, harp_data):
     Concatenate traces and timestamps for all valid trials for a given DMD and trace type.
     Returns (all_traces, all_timestamps)
     """
+    dmd_idx = dmd-1
     all_timestamps = None
     all_traces = None
-    for trial in exp.valid_trials[dmd]:
+    trial_start_idxs = []
+    discarded_frames = []
+    for trial in exp.valid_trials[dmd_idx]:
         trial_idx = trial - 1  # 1-indexed to 0-indexed
-        traces = exp.get_traces(dmd+1, trial, trace_type1=trace_type1, trace_type2=trace_type2)
+        traces = exp.get_traces(dmd, trial, trace_type1=trace_type1, trace_type2=trace_type2)
         if traces.ndim > 2:
             traces = traces[0]
         start_trial = harp_data['slap2_start_times'][trial_idx]
@@ -124,7 +127,17 @@ def get_concatenated_traces(exp, dmd, trace_type1, trace_type2, harp_data):
         else:
             all_traces = np.concatenate((all_traces, traces.T))
             all_timestamps = np.concatenate((all_timestamps, timestamps))
-    return all_traces, all_timestamps
+
+        # record the start index of each trial
+        if len(timestamps) > 0:
+            trial_start_idxs.append(len(all_timestamps))
+        # record whether each frame was 'invalid'
+        if trial in exp.valid_trials[dmd_idx]:
+            discarded_frames.extend([False] * len(timestamps))
+        else:
+            discarded_frames.extend([True] * len(timestamps))
+
+    return all_traces, all_timestamps, np.array(trial_start_idxs), np.array(discarded_frames, dtype=bool)
 
 
 def expsum_mat_to_h5(mat_path, h5_path, harp_path):
@@ -136,24 +149,18 @@ def expsum_mat_to_h5(mat_path, h5_path, harp_path):
     import numpy as np
     expsum = ExperimentSummary(mat_path)
     harp_data = extract_harp(harp_path)
-    # Prepare timing_data for get_concatenated_traces
     with h5py.File(h5_path, "w") as h5:
         # Save all harp arrays at root for reference
         # harp_grp = h5.create_group("harp")
         # for k, v in harp_data.items():
         #     harp_grp.create_dataset(k, data=v)
-        for dmd in range(expsum.n_dmds):
-            dmd_name = f"DMD{dmd+1}"
-            dmd_grp = h5.create_group(dmd_name)
-            # frame_info
-            fi_grp = dmd_grp.create_group("frame_info")
-            fi_grp.create_dataset("trial_start_idxs", data=expsum.valid_trials[dmd])
-            n_frames = expsum.get_trial_length(1) if expsum.n_trials > 0 else 0
-            fi_grp.create_dataset("discard_frames", data=np.zeros((n_frames, 1)))
+        for dmd_idx in range(expsum.n_dmds):
+            dmd = dmd_idx+1
+            dmd_grp = h5.create_group(f"DMD{dmd}")
             # visualizations
             vis_grp = dmd_grp.create_group("visualizations")
-            vis_grp.create_dataset("mean_im", data=expsum.get_summary_image(dmd+1, 'meanIM'))
-            vis_grp.create_dataset("act_im", data=expsum.get_summary_image(dmd+1, 'actIM'))
+            vis_grp.create_dataset("mean_im", data=expsum.get_summary_image(dmd, 'meanIM'))
+            vis_grp.create_dataset("act_im", data=expsum.get_summary_image(dmd, 'actIM'))
             # vis_grp.create_dataset("per_trial_mean_im", data=np.zeros((expsum.n_trials, 1, 1)))
             # vis_grp.create_dataset("per_trial_act_im", data=np.zeros((expsum.n_trials, 1, 1)))
             # global
@@ -165,37 +172,42 @@ def expsum_mat_to_h5(mat_path, h5_path, harp_path):
 
             # sources
             sources_grp = dmd_grp.create_group("sources")
-            # Add real footprints to the spatial group
-            spatial_grp = sources_grp.create_group("spatial")
-            # Use the first valid trial for footprints
-            trial_to_use = expsum.valid_trials[dmd][0]
 
-            # Get user ROI masks for this DMD
-            fp_masks, fp_coords = expsum.get_footprints(dmd=dmd+1, trial=trial_to_use)
-            
+            spatial_grp = sources_grp.create_group("spatial")
+            trial_to_use = expsum.valid_trials[dmd_idx][0]
+            fp_masks, fp_coords = expsum.get_footprints(dmd=dmd, trial=trial_to_use)
             spatial_grp.create_dataset("fp_masks",data=fp_masks,compression="gzip")
             spatial_grp.create_dataset("fp_coords",data=fp_coords,compression="gzip")
 
             # temporal group
             temporal_grp = sources_grp.create_group("temporal")
-            dF_traces, _ = get_concatenated_traces(expsum, dmd, 'dF', 'denoised', harp_data)
-            dFF_traces, _ = get_concatenated_traces(expsum, dmd, 'dFF', 'denoised', harp_data)
-            F0_traces, _ = get_concatenated_traces(expsum, dmd, 'F0', None, harp_data)
+            dF_traces, _, _, _ = get_concatenated_traces(expsum, dmd, 'dF', 'denoised', harp_data)
+            dFF_traces, _, _, _ = get_concatenated_traces(expsum, dmd, 'dFF', 'denoised', harp_data)
+            F0_traces, _, trial_start_idxs, discarded_frames = get_concatenated_traces(expsum, dmd, 'F0', None, harp_data)
             temporal_grp.create_dataset("dF", data=dF_traces)
             temporal_grp.create_dataset("dFF", data=dFF_traces)
             temporal_grp.create_dataset("F0", data=F0_traces)
 
+            # frame_info
+            fi_grp = dmd_grp.create_group("frame_info")
+            fi_grp.create_dataset("trial_start_idxs", data=trial_start_idxs)
+            fi_grp.create_dataset("discard_frames", data=discarded_frames)
+
+
 def add_rois_group(dmd_grp, expsum, dmd):
+    dmd_idx = dmd-1
+    rois_grp = dmd_grp.create_group("user_rois")
+
     user_rois = expsum.get_user_rois_info()
-    if user_rois['masks'][dmd]:
-        masks = np.stack(user_rois['masks'][dmd], axis=-1)
+    if user_rois['masks'][dmd_idx]:
+        masks = np.stack(user_rois['masks'][dmd_idx], axis=-1)
     else:
         masks = np.zeros((1,1,1))
-    rois_grp = dmd_grp.create_group("user_rois")
     rois_grp.create_dataset("mask", data=masks)
+
     F_list = []
     Fsvd_list = []
-    for trial in expsum.valid_trials[dmd][:-1]:
+    for trial in expsum.valid_trials[dmd_idx]:
         F = expsum.get_user_roi_traces(dmd, trial)
         F_list.append(F)
         Fsvd = expsum.get_user_roi_traces(dmd, trial, trace_type='Fsvd')
@@ -205,6 +217,7 @@ def add_rois_group(dmd_grp, expsum, dmd):
     Fsvd_concat = np.concatenate(Fsvd_list, axis=2)
     rois_grp.create_dataset("F", data=F_concat)
     rois_grp.create_dataset("Fsvd", data=Fsvd_concat)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Convert experimentsummary.mat to experiment_summary.h5.")

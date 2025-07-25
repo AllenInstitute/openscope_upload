@@ -20,70 +20,21 @@ from aind_metadata_mapper.open_ephys.camstim_ephys_session import CamstimEphysSe
 
 from utils import process_ephys_sync as stim_utils
 
+from codeocean.computation import RunParams, DataAssetsRunParam
+from codeocean.data_asset import DataAssetParams
+from aind_codeocean_pipeline_monitor.models import (
+    PipelineMonitorSettings,
+    CaptureSettings,
+)
+from aind_data_schema_models.data_name_patterns import DataLevel
 
-# defaults
-DEFAULT_OPTO_CONDITIONS = {
-    '0': {
-        'duration': .01,
-        'name': '1Hz_10ms',
-        'condition': '10 ms pulse at 1 Hz'
-    },
-    '1': {
-        'duration': .002,
-        'name': '1Hz_2ms',
-        'condition': '2 ms pulse at 1 Hz'
-    },
-    '2': {
-        'duration': 1.0,
-        'name': '5Hz_2ms',
-        'condition': '2 ms pulses at 5 Hz'
-    },
-    '3': {
-        'duration': 1.0,
-        'name': '10Hz_2ms',
-        'condition': '2 ms pulses at 10 Hz'
-    },
-    '4': {
-        'duration': 1.0,
-        'name': '20Hz_2ms',
-        'condition': '2 ms pulses at 20 Hz'
-    },
-    '5': {
-        'duration': 1.0,
-        'name': '30Hz_2ms',
-        'condition': '2 ms pulses at 30 Hz'
-    },
-    '6': {
-        'duration': 1.0,
-        'name': '40Hz_2ms',
-        'condition': '2 ms pulses at 40 Hz'
-    },
-    '7': {
-        'duration': 1.0,
-        'name': '50Hz_2ms',
-        'condition': '2 ms pulses at 50 Hz'
-    },
-    '8': {
-        'duration': 1.0,
-        'name': '60Hz_2ms',
-        'condition': '2 ms pulses at 60 Hz'
-    },
-    '9': {
-        'duration': 1.0,
-        'name': '80Hz_2ms',
-        'condition': '2 ms pulses at 80 Hz'
-    },
-    '10': {
-        'duration': 1.0,
-        'name': 'square_1s',
-        'condition': '1 second square pulse: continuously on for 1s'
-    },
-    '11': {
-        'duration': 1.0,
-        'name': 'cosine_1s',
-        'condition': 'cosine pulse'
-    },
-}
+from aind_data_transfer_models.core import (
+    ModalityConfigs,
+    BasicUploadJobConfigs,
+    SubmitJobRequest,
+    CodeOceanPipelineMonitorConfigs,
+)
+
 
 organization_map = {
     'NINDS': Organization.NINDS
@@ -191,6 +142,7 @@ def fetch_rig_json(session: np_session.Session):
 
 
 def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool = False, overwrite: bool = False, test_upload: bool = False) -> None:
+    log = []
     for session_id in session_ids:
         # fetch_rig_json(session) # do this when slims is up and running
         print(f'\ngenerating jsons for session {session_id}')
@@ -200,6 +152,7 @@ def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool 
         # generate_data_description_json(project_name, session, overwrite=overwrite)
         # generate_rig_json(session, overwrite=overwrite)
 
+        print(session.folder)
         platform_path = next(session.npexp_path.glob(f'{session.folder}_platform*.json'))
         platform_json = json.loads(platform_path.read_text())
         project_name = platform_json['project']
@@ -221,13 +174,57 @@ def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool 
         session_mapper = CamstimEphysSessionEtl(openscope_session_settings)
         session_mapper.run_job()
 
-        session_settings = SessionSettings(job_settings=openscope_session_settings)
-        metadata_job_settings = GatherMetadataJobSettings(directory_to_write_to="stage", session_settings=session_settings)
-        np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, metadata_configs=metadata_job_settings)
+        # session_settings = SessionSettings(job_settings=openscope_session_settings)
+        # metadata_job_settings = GatherMetadataJobSettings(directory_to_write_to="stage", session_settings=session_settings)
+        
+        # codeocean_configs = CodeOceanPipelineMonitorConfigs(
+        #     register_data_settings=DataAssetParams(
+        #         name="",
+        #         mount="",
+        #         tags=[DataLevel.RAW.value, "ecephys"],
+        #         custom_metadata={"data level": DataLevel.RAW.value},
+        #     ),
+        #     pipeline_monitor_capsule_settings=[
+        #         PipelineMonitorSettings(
+        #             run_params=RunParams(
+        #                 pipeline_id="7935d378-ce0e-4129-8774-81e9c8573bc2",
+        #                 data_assets=[DataAssetsRunParam(id="", mount="")],
+        #                 parameters=[],
+        #             ),
+        #             capture_settings=CaptureSettings(
+        #                 process_name_suffix="eye-tracking",
+        #                 tags=[DataLevel.DERIVED.value, "eye_tracking"],
+        #             ),
+        #         ),
+        #         PipelineMonitorSettings(
+        #             run_params=RunParams(
+        #                 pipeline_id="daef0b82-2f12-4122-964d-efa5f608ad69",
+        #                 data_assets=[DataAssetsRunParam(id="", mount="ecephys")],
+        #                 parameters=[],
+        #             ),
+        #             capture_settings=CaptureSettings(
+        #                 process_name_suffix="sorted",
+        #                 tags=[DataLevel.DERIVED.value, "ecephys_sorted"],
+        #             ),
+        #         )
+
+        #     ],
+        # )
+        # np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, metadata_configs=metadata_job_settings, codeocean_configs=codeocean_configs)
         if not no_upload:
-            np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, test=test_upload)
+            try:
+                np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, test=test_upload)
+                log.append(f"{session_id} upload succesfully triggered!")
+            except Exception as e:
+                log.append(f"{session_id} upload failed with error: {e}")
         if no_upload:
             print("not uploading!")
+            log.append(f"{session_id} upload skipped")
+
+    print("="*64)
+    for logstr in log:
+        print(logstr)
+    print("="*64)
 
 
 def parse_args() -> argparse.Namespace:
