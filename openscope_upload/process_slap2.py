@@ -12,6 +12,8 @@ import np_session
 import pandas as pd
 import os
 import traceback
+import shutil
+from scbc.slap2.experiment_summary import ExperimentSummary
 
 from aind_data_schema_models.modalities import Modality as schema_modalities
 from aind_data_schema_models.organizations import Organization
@@ -30,7 +32,7 @@ from aind_data_transfer_service.models.core import (
     UploadJobConfigsV2,
 )
 
-import harp_utils
+from openscope_upload import harp_utils
 from aind_metadata_mapper.slap2_harp.session import Slap2HarpSessionEtl
 
 
@@ -49,6 +51,7 @@ modality_map = {
 USER_EMAIL = "carter.peene@alleninstitute.org"
 
 SLAP2_PATH = pl.Path(r"\\allen\aind\scratch\OpenScope\Slap2\Data")
+SLAP2_RIG_JSON = pl.Path(r"\\allen\aind\scratch\OpenScope\Slap2\rig.json")
 
 
 def add_rois_group(dmd_grp, expsum, dmd):
@@ -90,7 +93,7 @@ def get_concatenated_traces(exp, dmd, trace_type1, trace_type2, harp_data):
     # for trial in exp.valid_trials[dmd_idx]:
     print("%"*64)
     print(len(harp_data["slap2_start_times"]), len(harp_data["slap2_end_times"]), exp.n_trials, len(exp.valid_trials[dmd_idx]))
-    print(harp_data["slap2_end_times"] - harp_data["slap2_start_times"])
+    # print(harp_data["slap2_end_times"] - harp_data["slap2_start_times"])
     slap2_trial_lengths = []
     for trial in exp.valid_trials[dmd_idx]:
         # record the start index of each trial
@@ -175,7 +178,7 @@ def generate_metadata_jsons(session_id, session_path, project_name, overwrite: b
     print(f'\ngenerating metadata for session {session_id}')
 
     print(session_path)
-    projects_info = pd.read_csv(pl.Path(__file__).parent / 'data/projects_info.csv', index_col='project_name')
+    projects_info = pd.read_csv(pl.Path(__file__).parent.parent / 'data/projects_info.csv', index_col='project_name')
     project_info = projects_info.loc[project_name]
     
     openscope_session_settings = Slap2HarpJobSettings(
@@ -191,6 +194,13 @@ def generate_metadata_jsons(session_id, session_path, project_name, overwrite: b
     )
     session_mapper = Slap2HarpSessionEtl(openscope_session_settings)
     session_mapper.run_job()
+
+    if not os.path.exists(session_path / "rig.json") or overwrite:
+        print(f"Copying rig.json")
+        shutil.copy(SLAP2_RIG_JSON, session_path / 'rig.json')
+    else:
+        print(f"rig.json already exists, skipping copy, use --overwrite to force copy")
+
 
 
 def upload_session(session_path, project_name, subject_id, test_upload: bool = False, no_upload: bool = False, force: bool = False):
@@ -283,7 +293,7 @@ def prepare_session(session_id, overwrite: bool = False, no_upload: bool = False
         except Exception as e:
             return f"Error converting {session_id} from a .mat to .h5:\n{traceback.format_exc()}"
 
-    generate_metadata_jsons(session_id, session_path, project_name)
+    generate_metadata_jsons(session_id, session_path, project_name, overwrite=overwrite)
 
     if not no_upload:
         try:
