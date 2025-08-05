@@ -1,5 +1,5 @@
 import harp
-from pathlib import Path
+import pathlib as pl
 import matplotlib.pyplot as plt
 import numpy as np
 import requests, yaml, io
@@ -7,99 +7,82 @@ import scipy.io
 import h5py
 import argparse
 from scbc.slap2.experiment_summary import ExperimentSummary
+import json
+import np_codeocean
+import np_session
+import pandas as pd
+import os
+import traceback
 
-def _get_yml_from_who_am_i(who_am_i: int, release: str = "main") -> io.BytesIO:
-    try:
-        device = _get_who_am_i_list()[who_am_i]
-    except KeyError as e:
-        raise KeyError(f"WhoAmI {who_am_i} not found in whoami.yml") from e
+from aind_data_schema.core.data_description import Funding, DataDescription
+from aind_data_schema_models.modalities import Modality as schema_modalities
+from aind_data_schema_models.organizations import Organization
+from aind_data_schema_models.pid_names import PIDName
+from aind_data_schema_models.platforms import Platform
 
-    repository_url = device.get("repositoryUrl", None)
+from aind_metadata_mapper.models import SessionSettings, JobSettings as GatherMetadataJobSettings
+from aind_metadata_mapper.slap2_harp.models import JobSettings as Slap2HarpJobSettings
+from datetime import datetime
 
-    if repository_url is None:
-        raise ValueError("Device's repositoryUrl not found in whoami.yml")
-    else:  # attempt to get the device.yml from the repository
-        _repo_hint_paths = [
-            "{repository_url}/{release}/device.yml",
-            "{repository_url}/{release}/software/bonsai/device.yml",
-        ]
+import requests
+from aind_data_schema_models.modalities import Modality
+from aind_data_schema_models.platforms import Platform
 
-        yml = None
-        for hint in _repo_hint_paths:
-            url = hint.format(repository_url=repository_url, release=release)
-            if "github.com" in url:
-                url = url.replace("github.com", "raw.githubusercontent.com")
-            response = requests.get(url, allow_redirects=True, timeout=5)
-            if response.status_code == 200:
-                yml = io.BytesIO(response.content)
-                break
-        if yml is None:
-            raise FileNotFoundError("device.yml not found in any repository")
-        else:
-            return yml
+from aind_data_transfer_service.models.core import (
+    SubmitJobRequestV2,
+    Task,
+    UploadJobConfigsV2,
+)
 
-def _get_who_am_i_list(url: str = "https://raw.githubusercontent.com/harp-tech/protocol/main/whoami.yml"):
-    response = requests.get(url, allow_redirects=True, timeout=5)
-    content = response.content.decode("utf-8")
-    content = yaml.safe_load(content)
-    devices = content["devices"]
-    return devices
+import harp_utils
+
+from aind_metadata_mapper.slap2_harp.session import Slap2HarpSessionEtl
+
+from utils import process_ephys_sync as stim_utils
 
 
-def fetch_yml(harp_path):
-    with open(harp_path / 'Behavior_0.bin',mode='rb') as reg_0:
-        who_am_i = int(harp.read(reg_0).values[0][0])
-        yml_bytes = _get_yml_from_who_am_i(who_am_i)
-    yaml_content = yml_bytes.getvalue()
-    with open(harp_path / "device.yml", "wb") as f:
-        f.write(yaml_content)
-    return harp_path / "device.yml"
 
 
-def extract_harp(harp_path):
-    """
-    Extract all relevant arrays from a HARP folder (timing and data arrays).
-    Returns a dict with all read arrays as values, using clear names and normalized time arrays.
-    """
-    harp_path = Path(harp_path)
-    if not (harp_path / "device.yml").exists():
-        fetch_yml(harp_path)
-    reader = harp.create_reader(harp_path)
-    analog_data = reader.AnalogData.read()
-    analog_times = analog_data.index.to_numpy()
-    photodiode = analog_data["AnalogInput0"].to_numpy()
-    wheel = analog_data["Encoder"].to_numpy()
-    slap2_start_signal = reader.PulseDO0.read()["PulseDO0"].to_numpy()
-    slap2_start_times = reader.PulseDO0.read()["PulseDO0"].index.to_numpy()
-    slap2_end_signal = reader.PulseDO1.read()["PulseDO1"].to_numpy()
-    slap2_end_times = reader.PulseDO1.read().index.to_numpy()
-    grating_signal = reader.PulseDO2.read()["PulseDO2"].to_numpy()
-    grating_times = reader.PulseDO2.read()["PulseDO2"].index.to_numpy()
+organization_map = {
+    'NINDS': Organization.NINDS
+}
 
-    # Set the time reference (time_0)
-    time_reference = slap2_start_times[0]
-    # Calculate normalized times
-    normalized_start_gratings = grating_times - time_reference
-    normalized_slap2_start = slap2_start_times - time_reference
-    normalized_slap2_end = slap2_end_times - time_reference
-    normalized_analog_times = analog_times - time_reference
+modality_map = {
+    'ephys': schema_modalities.ECEPHYS,
+    'behavior-videos': schema_modalities.BEHAVIOR_VIDEOS,
+    'behavior': schema_modalities.BEHAVIOR,
+    'ophys': schema_modalities.POPHYS
+}
 
-    return {
-        "analog_times": analog_times,
-        "photodiode": photodiode,
-        "wheel": wheel,
-        "slap2_start_signal": slap2_start_signal,
-        "slap2_start_times": slap2_start_times,
-        "slap2_end_signal": slap2_end_signal,
-        "slap2_end_times": slap2_end_times,
-        "grating_signal": grating_signal,
-        "grating_times": grating_times,
-        "time_reference": time_reference,
-        "normalized_start_gratings": normalized_start_gratings,
-        "normalized_slap2_start": normalized_slap2_start,
-        "normalized_slap2_end": normalized_slap2_end,
-        "normalized_analog_times": normalized_analog_times
-    }
+USER_EMAIL = "carter.peene@alleninstitute.org"
+
+SLAP2_PATH = pl.Path(r"\\allen\aind\scratch\OpenScope\Slap2\Data")
+
+
+def add_rois_group(dmd_grp, expsum, dmd):
+    dmd_idx = dmd-1
+    rois_grp = dmd_grp.create_group("user_rois")
+
+    user_rois = expsum.get_user_rois_info()
+    if user_rois['masks'][dmd_idx]:
+        masks = np.stack(user_rois['masks'][dmd_idx], axis=-1)
+    else:
+        masks = np.zeros(0)
+    
+    rois_grp.create_dataset("mask", data=masks)
+
+    F_list = []
+    Fsvd_list = []
+    for trial in expsum.valid_trials[dmd_idx]:
+        F = expsum.get_user_roi_traces(dmd, trial)
+        F_list.append(F)
+        Fsvd = expsum.get_user_roi_traces(dmd, trial, trace_type='Fsvd')
+        Fsvd_list.append(Fsvd)
+
+    F_concat = np.concatenate(F_list, axis=2)
+    Fsvd_concat = np.concatenate(Fsvd_list, axis=2)
+    rois_grp.create_dataset("F", data=F_concat)
+    rois_grp.create_dataset("Fsvd", data=Fsvd_concat)
 
 
 def get_concatenated_traces(exp, dmd, trace_type1, trace_type2, harp_data):
@@ -108,34 +91,34 @@ def get_concatenated_traces(exp, dmd, trace_type1, trace_type2, harp_data):
     Returns (all_traces, all_timestamps)
     """
     dmd_idx = dmd-1
-    all_timestamps = None
+    all_timestamps = []
     all_traces = None
     trial_start_idxs = []
     discarded_frames = []
+    # for trial in exp.valid_trials[dmd_idx]:
+    print("%"*64)
+    print(len(harp_data["slap2_start_times"]), len(harp_data["slap2_end_times"]), exp.n_trials, len(exp.valid_trials[dmd_idx]))
+    print(harp_data["slap2_end_times"] - harp_data["slap2_start_times"])
+    slap2_trial_lengths = []
     for trial in exp.valid_trials[dmd_idx]:
+        # record the start index of each trial
+        trial_start_idxs.append(len(all_timestamps))
         trial_idx = trial - 1  # 1-indexed to 0-indexed
+
         traces = exp.get_traces(dmd, trial, trace_type1=trace_type1, trace_type2=trace_type2)
         if traces.ndim > 2:
             traces = traces[0]
         start_trial = harp_data['slap2_start_times'][trial_idx]
         end_trial = harp_data['slap2_end_times'][trial_idx]
         num_timepoints = traces.shape[1]
+        slap2_trial_lengths.append(num_timepoints)
         timestamps = np.linspace(start_trial, end_trial, num_timepoints)
-        if all_traces is None or all_timestamps is None:
+        if all_traces is None or len(all_timestamps) == 0:
             all_traces = traces.T
             all_timestamps = timestamps
         else:
             all_traces = np.concatenate((all_traces, traces.T))
             all_timestamps = np.concatenate((all_timestamps, timestamps))
-
-        # record the start index of each trial
-        if len(timestamps) > 0:
-            trial_start_idxs.append(len(all_timestamps))
-        # record whether each frame was 'invalid'
-        if trial in exp.valid_trials[dmd_idx]:
-            discarded_frames.extend([False] * len(timestamps))
-        else:
-            discarded_frames.extend([True] * len(timestamps))
 
     return all_traces, all_timestamps, np.array(trial_start_idxs), np.array(discarded_frames, dtype=bool)
 
@@ -147,8 +130,9 @@ def expsum_mat_to_h5(mat_path, h5_path, harp_path):
     """
     import h5py
     import numpy as np
+    print(f"Converting {mat_path} to {h5_path}")
     expsum = ExperimentSummary(mat_path)
-    harp_data = extract_harp(harp_path)
+    harp_data = harp_utils.extract_harp(harp_path, expected_n_trials=expsum.n_trials)
     with h5py.File(h5_path, "w") as h5:
         # Save all harp arrays at root for reference
         # harp_grp = h5.create_group("harp")
@@ -163,6 +147,7 @@ def expsum_mat_to_h5(mat_path, h5_path, harp_path):
             vis_grp.create_dataset("act_im", data=expsum.get_summary_image(dmd, 'actIM'))
             # vis_grp.create_dataset("per_trial_mean_im", data=np.zeros((expsum.n_trials, 1, 1)))
             # vis_grp.create_dataset("per_trial_act_im", data=np.zeros((expsum.n_trials, 1, 1)))
+
             # global
             # global_grp = dmd_grp.create_group("global")
             # global_grp.create_dataset("F", data=np.zeros((n_frames, 1)))
@@ -194,50 +179,149 @@ def expsum_mat_to_h5(mat_path, h5_path, harp_path):
             fi_grp.create_dataset("discard_frames", data=discarded_frames)
 
 
-def add_rois_group(dmd_grp, expsum, dmd):
-    dmd_idx = dmd-1
-    rois_grp = dmd_grp.create_group("user_rois")
+def generate_metadata_jsons(session_id, session_path, project_name, overwrite: bool = False) -> None:
+    print(f'\ngenerating metadata for session {session_id}')
 
-    user_rois = expsum.get_user_rois_info()
-    if user_rois['masks'][dmd_idx]:
-        masks = np.stack(user_rois['masks'][dmd_idx], axis=-1)
+    print(session_path)
+    projects_info = pd.read_csv(pl.Path(__file__).parent / 'data/projects_info.csv', index_col='project_name')
+    project_info = projects_info.loc[project_name]
+    
+    openscope_session_settings = Slap2HarpJobSettings(
+        session_type="slap2",
+        project_name="OpenScope",
+        iacuc_protocol=str(project_info["iacuc_protocol"]),
+        description=project_info["description"],
+        overwrite_tables=True,
+        mtrain_server="http://mtrain:5000",
+        session_id=session_id,
+        input_source=session_path,
+        output_directory=session_path 
+    )
+    session_mapper = Slap2HarpSessionEtl(openscope_session_settings)
+    session_mapper.run_job()
+
+
+def upload_session(session_path, project_name, subject_id, test_upload: bool = False, no_upload: bool = False, force: bool = False):
+    endpoint = "http://aind-data-transfer-service-dev" if test_upload else "http://aind-data-transfer-service"
+    timestamp_str = session_path.name.split('_')[-1]
+    acq_datetime = datetime.strptime(timestamp_str, "%Y%m%dT%H%M%S")
+
+    slap2_task = Task(
+        job_settings={
+            "input_source": (
+                (session_path / "slap2").as_posix()
+            )
+        }
+    )
+    harp_behavior_task = Task(
+        job_settings={
+            "input_source": (
+                (session_path / "behavior").as_posix()
+            )
+        }
+    )
+    modality_transformation_settings = {Modality.SLAP.abbreviation: slap2_task, Modality.BEHAVIOR.abbreviation: harp_behavior_task}
+    gather_preliminary_metadata = Task(
+        job_settings={
+            "metadata_dir": (
+                session_path.as_posix()
+            )
+        }
+    )
+    print("FORCING UPLOAD?: ", force)
+    upload_job_configs_v2 = UploadJobConfigsV2(
+        job_type="default",
+        project_name="Ophys Platform - SLAP2",
+        platform=Platform.SLAP2,
+        modalities=[Modality.SLAP, Modality.BEHAVIOR],
+        subject_id=subject_id,
+        acq_datetime=acq_datetime,
+        tasks={
+            "modality_transformation_settings": modality_transformation_settings,
+            "gather_preliminary_metadata": gather_preliminary_metadata,
+            "check_s3_folder_exists": {"skip_task": force},
+        },
+    )
+
+    submit_request_v2 = SubmitJobRequestV2(
+        upload_jobs=[upload_job_configs_v2],
+    )
+    post_request_content = submit_request_v2.model_dump(
+        mode="json", exclude_none=True
+    )
+    submit_job_response = requests.post(
+        url=f"{endpoint}/api/v2/submit_jobs",
+        json=post_request_content,
+    )
+    print(submit_job_response.status_code)
+    print(submit_job_response.json())
+
+
+def prepare_session(session_id, overwrite: bool = False, no_upload: bool = False, test_upload: bool = False, force: bool = False):
+    session_paths = list(SLAP2_PATH.rglob(session_id))
+    if len(session_paths) != 1:
+        return f"Expected 1 session path for {session_id}, found {len(session_paths)}"
     else:
-        masks = np.zeros((1,1,1))
-    rois_grp.create_dataset("mask", data=masks)
+        session_path = session_paths[0]
 
-    F_list = []
-    Fsvd_list = []
-    for trial in expsum.valid_trials[dmd_idx]:
-        F = expsum.get_user_roi_traces(dmd, trial)
-        F_list.append(F)
-        Fsvd = expsum.get_user_roi_traces(dmd, trial, trace_type='Fsvd')
-        Fsvd_list.append(Fsvd)
+    project_name = "OpenScopePredictiveProcessing"
+    subject_id = session_path.name.split('_')[0]
 
-    F_concat = np.concatenate(F_list, axis=2)
-    Fsvd_concat = np.concatenate(Fsvd_list, axis=2)
-    rois_grp.create_dataset("F", data=F_concat)
-    rois_grp.create_dataset("Fsvd", data=Fsvd_concat)
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Convert experimentsummary.mat to experiment_summary.h5.")
-    parser.add_argument("session_path", type=str, help="Path to session directory (will search for *Summary*.mat and *.harp)")
-    parser.add_argument("h5_path", type=str, help="Path to output experiment_summary.h5 file")
-    args = parser.parse_args()
-    session_path = Path(args.session_path)
     # Find summary .mat file
     mat_matches = list(session_path.rglob("*Summary*.mat"))
     if not mat_matches:
-        raise FileNotFoundError(f"No *Summary*.mat file found in {session_path}")
+        return f"No *Summary*.mat file found in {session_path}"
     mat_path = mat_matches[0]
     print(f"Found summary .mat file: {mat_path}")
     # Find .harp folder
     harp_matches = list(session_path.rglob("*.harp"))
     if not harp_matches:
-        raise FileNotFoundError(f"No *.harp folder found in {session_path}")
+        return f"No *.harp folder found in {session_path}"
     harp_path = harp_matches[0]
     print(f"Found .harp folder: {harp_path}")
-    expsum_mat_to_h5(mat_path, args.h5_path, harp_path)
+
+    h5_path = session_path / "slap2" / "experiment_summary.h5"
+    if os.path.exists(h5_path) and overwrite:
+        print(f"{h5_path} already exists, overwriting...")
+    if os.path.exists(h5_path) and not overwrite:
+        return f"{h5_path} already exists, skipping conversion. Use --overwrite to force conversion."
+    if not os.path.exists(h5_path) or overwrite:
+        try:
+            expsum_mat_to_h5(mat_path, h5_path, harp_path)
+        except Exception as e:
+            return f"Error converting {session_id} from a .mat to .h5:\n{traceback.format_exc()}"
+
+    generate_metadata_jsons(session_id, session_path, project_name)
+
+    if not no_upload:
+        try:
+            upload_session(session_path, project_name, subject_id, test_upload, no_upload, force)
+            return f"{session_id} upload succesfully triggered!"
+        except Exception as e:
+            return f"{session_id} upload failed with error:\n{traceback.format_exc()}"
+    if no_upload:
+        print("not uploading!")
+        return f"{session_id} upload skipped"
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Convert experimentsummary.mat to experiment_summary.h5.")
+    parser.add_argument('session_ids', nargs='+', help='one or more session IDs for slap2 sessions (mouse_date)')
+    parser.add_argument('--overwrite', action='store_true', help='Overwrite existing metadata or experiment_summary.h5 files if they exist')
+    parser.add_argument('--no_upload', action='store_true', help='Don\'t run an upload job, just generate metadata files')
+    parser.add_argument('--test_upload', action='store_true', help='Run the upload at the dev endpoint')
+    parser.add_argument('--force', action='store_true', help="enable `force_cloud_sync` option, re-uploading and re-making raw asset even if data exists on S3")
+    args = parser.parse_args()
+
+    log = []
+    for session_id in args.session_ids:
+        log.append(prepare_session(session_id, args.overwrite, args.no_upload, args.test_upload, args.force))
+    print("="*64)
+    for logstr in log:
+        print(logstr)
+    print("="*64)
+
+
 
 if __name__ == "__main__":
     main()

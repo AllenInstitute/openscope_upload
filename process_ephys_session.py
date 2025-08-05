@@ -49,6 +49,7 @@ modality_map = {
 
 USER_EMAIL = "carter.peene@alleninstitute.org"
 
+THIS_FILE_DIR = pl.Path(__file__).parent
 
 # def generate_rig_json(session: np_session.Session, overwrite: bool = False):
 #     if (session.npexp_path / 'rig.json').exists():
@@ -100,16 +101,14 @@ USER_EMAIL = "carter.peene@alleninstitute.org"
 #     )
 #     data_description.write_standard_file(session.npexp_path)
 
-from pathlib import Path
 def generate_session_json(session_id: str, session: np_session.Session, overwrite: bool = False) -> str:
     platform_path = next(session.npexp_path.glob(f'{session.folder}_platform*.json'))
     platform_json = json.loads(platform_path.read_text())
     project_name = platform_json['project']
-    # experiment_info = json.loads(pl.Path(__file__).with_name('experiment_info.json').read_text())
 
     print(project_name)
-    projects_info = pd.read_csv(pl.Path(__file__).parent / 'projects_info.csv', index_col='project_name')
-    
+    projects_info = pd.read_csv(THIS_FILE_DIR / 'data' / 'projects_info.csv', index_col='project_name')
+
     print(projects_info)
     project_info = projects_info.loc[project_name]
 
@@ -157,7 +156,7 @@ def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool 
         platform_json = json.loads(platform_path.read_text())
         project_name = platform_json['project']
 
-        projects_info = pd.read_csv(pl.Path(__file__).parent / 'projects_info.csv', index_col='project_name')
+        projects_info = pd.read_csv(THIS_FILE_DIR / 'data' / 'projects_info.csv', index_col='project_name')
         project_info = projects_info.loc[project_name]
         
         openscope_session_settings = CamstimEphysSessionSettings(
