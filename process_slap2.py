@@ -6,7 +6,6 @@ import requests, yaml, io
 import scipy.io
 import h5py
 import argparse
-from scbc.slap2.experiment_summary import ExperimentSummary
 import json
 import np_codeocean
 import np_session
@@ -14,13 +13,10 @@ import pandas as pd
 import os
 import traceback
 
-from aind_data_schema.core.data_description import Funding, DataDescription
 from aind_data_schema_models.modalities import Modality as schema_modalities
 from aind_data_schema_models.organizations import Organization
-from aind_data_schema_models.pid_names import PIDName
 from aind_data_schema_models.platforms import Platform
 
-from aind_metadata_mapper.models import SessionSettings, JobSettings as GatherMetadataJobSettings
 from aind_metadata_mapper.slap2_harp.models import JobSettings as Slap2HarpJobSettings
 from datetime import datetime
 
@@ -35,11 +31,7 @@ from aind_data_transfer_service.models.core import (
 )
 
 import harp_utils
-
 from aind_metadata_mapper.slap2_harp.session import Slap2HarpSessionEtl
-
-from utils import process_ephys_sync as stim_utils
-
 
 
 
