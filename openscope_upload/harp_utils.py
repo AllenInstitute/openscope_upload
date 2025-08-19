@@ -70,7 +70,7 @@ def extract_harp(harp_path, expected_n_trials=None):
     slap2_start_signal = reader.PulseDO0.read()["PulseDO0"].to_numpy()
     slap2_start_times = reader.PulseDO0.read()["PulseDO0"].index.to_numpy()
     slap2_end_signal = reader.PulseDO1.read()["PulseDO1"].to_numpy()
-    slap2_end_times = reader.PulseDO1.read().index.to_numpy()
+    slap2_end_times = reader.PulseDO1.read()["PulseDO1"].index.to_numpy()
     grating_signal = reader.PulseDO2.read()["PulseDO2"].to_numpy()
     grating_times = reader.PulseDO2.read()["PulseDO2"].index.to_numpy()
 

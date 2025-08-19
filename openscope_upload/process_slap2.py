@@ -69,13 +69,18 @@ def add_rois_group(dmd_grp, expsum, dmd):
     F_list = []
     Fsvd_list = []
     for trial in expsum.valid_trials[dmd_idx]:
-        F = expsum.get_user_roi_traces(dmd, trial)
-        F_list.append(F)
-        Fsvd = expsum.get_user_roi_traces(dmd, trial, trace_type='Fsvd')
-        Fsvd_list.append(Fsvd)
+        if len(expsum.get_user_rois_info()['masks'][dmd_idx]) != 0:
+            F = expsum.get_user_roi_traces(dmd, trial)
+            F_list.append(F)
+            Fsvd = expsum.get_user_roi_traces(dmd, trial, trace_type='Fsvd')
+            Fsvd_list.append(Fsvd)
 
-    F_concat = np.concatenate(F_list, axis=2)
-    Fsvd_concat = np.concatenate(Fsvd_list, axis=2)
+    if F_list:
+        F_concat = np.concatenate(F_list, axis=2)
+        Fsvd_concat = np.concatenate(Fsvd_list, axis=2)
+    else:
+        F_concat = np.array([])
+        Fsvd_concat = np.array([])
     rois_grp.create_dataset("F", data=F_concat)
     rois_grp.create_dataset("Fsvd", data=Fsvd_concat)
 
@@ -91,7 +96,7 @@ def get_concatenated_traces(exp, dmd, trace_type1, trace_type2, harp_data):
     trial_start_idxs = []
     discarded_frames = []
     # for trial in exp.valid_trials[dmd_idx]:
-    print("%"*64)
+    print(f"getting concatenated traces for dmd {dmd}, trace type {trace_type1}")
     print(len(harp_data["slap2_start_times"]), len(harp_data["slap2_end_times"]), exp.n_trials, len(exp.valid_trials[dmd_idx]))
     # print(harp_data["slap2_end_times"] - harp_data["slap2_start_times"])
     slap2_trial_lengths = []
@@ -115,6 +120,7 @@ def get_concatenated_traces(exp, dmd, trace_type1, trace_type2, harp_data):
             all_traces = np.concatenate((all_traces, traces.T))
             all_timestamps = np.concatenate((all_timestamps, timestamps))
 
+    print(f"shape of traces: {all_traces.shape}")
     return all_traces, all_timestamps, np.array(trial_start_idxs), np.array(discarded_frames, dtype=bool)
 
 
@@ -200,7 +206,6 @@ def generate_metadata_jsons(session_id, session_path, project_name, overwrite: b
         shutil.copy(SLAP2_RIG_JSON, session_path / 'rig.json')
     else:
         print(f"rig.json already exists, skipping copy, use --overwrite to force copy")
-
 
 
 def upload_session(session_path, project_name, subject_id, test_upload: bool = False, no_upload: bool = False, force: bool = False):
