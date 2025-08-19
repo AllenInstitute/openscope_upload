@@ -113,6 +113,7 @@ def get_concatenated_traces(exp, dmd, trace_type1, trace_type2, harp_data):
         num_timepoints = traces.shape[1]
         slap2_trial_lengths.append(num_timepoints)
         timestamps = np.linspace(start_trial, end_trial, num_timepoints)
+        # print("%", start_trial, end_trial, num_timepoints)
         if all_traces is None or len(all_timestamps) == 0:
             all_traces = traces.T
             all_timestamps = timestamps

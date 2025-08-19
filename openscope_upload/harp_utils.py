@@ -100,9 +100,10 @@ def extract_harp(harp_path, expected_n_trials=None):
     }
     if expected_n_trials is not None:
         print('given expected n trials:', expected_n_trials)
-        trials_to_slice = len(slap2_start_times) - expected_n_trials
         for key in ("slap2_start_signal", "slap2_start_times", "slap2_end_signal", "slap2_end_times", "normalized_slap2_start", "normalized_slap2_end"):
-            print(key, len(time_dict[key]), trials_to_slice)
+            time_arr = time_dict[key]
+            trials_to_slice = len(time_arr) - expected_n_trials
+            print(key, len(time_arr), trials_to_slice)
             time_dict[key] = time_dict[key][trials_to_slice:]
     return time_dict
 
