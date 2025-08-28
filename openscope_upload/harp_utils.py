@@ -111,7 +111,8 @@ def extract_harp(harp_path, expected_n_trials=None):
 def get_concatenated_timestamps(trace, trial_start_idxs, harp_data):
     start_trial_times = harp_data["normalized_slap2_start"]
     end_trial_times = harp_data["normalized_slap2_end"]
-    print(len(start_trial_times), len(end_trial_times), len(trial_start_idxs), trace.shape[0])
+    assert len(start_trial_times) == len(end_trial_times) == len(trial_start_idxs), "Length of start times, end times, and trial start indices must be equal"
+    # print(len(start_trial_times), len(end_trial_times), len(trial_start_idxs), trace.shape[0])
 
     timestamps = np.empty(trace.shape[0])
     for i in range(len(trial_start_idxs)):
@@ -121,3 +122,21 @@ def get_concatenated_timestamps(trace, trial_start_idxs, harp_data):
         trial_timestamps = np.linspace(start_trial_times[i], end_trial_times[i], num_frames)
         timestamps[start_idx:end_idx] = trial_timestamps
     return timestamps
+
+
+def get_concatenated_timestamps_from_num_frames(trace, trial_num_frames, harp_data):
+    start_trial_times = harp_data["normalized_slap2_start"]
+    end_trial_times = harp_data["normalized_slap2_end"]
+    assert len(start_trial_times) == len(end_trial_times) == len(trial_num_frames), "Length of start times, end times, and trial start indices must be equal"
+    # print(len(start_trial_times), len(end_trial_times), len(trial_num_frames), trace.shape[0])
+
+    timestamps = []
+    for i in range(len(trial_start_idxs)):
+        num_frames = trial_num_frames[i]
+        if num_frames == 0:
+            continue
+        trial_timestamps = np.linspace(start_trial_times[i], end_trial_times[i], num_frames)
+        timestamps.append(trial_timestamps)
+
+    assert len(timestamps) == len(trace), "Generated timestamps don't match length of trace recording. Either trial_num_frames is wrong or the concatenated trace is wrong."
+    return np.array(timestamps)

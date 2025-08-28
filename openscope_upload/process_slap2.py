@@ -14,6 +14,8 @@ import os
 import traceback
 import shutil
 from scbc.slap2.experiment_summary import ExperimentSummary
+import h5py
+import numpy as np
 
 from aind_data_schema_models.modalities import Modality as schema_modalities
 from aind_data_schema_models.organizations import Organization
@@ -85,44 +87,43 @@ def add_rois_group(dmd_grp, expsum, dmd):
     rois_grp.create_dataset("Fsvd", data=Fsvd_concat)
 
 
-def get_concatenated_traces(exp, dmd, trace_type1, trace_type2, harp_data):
+def get_concatenated_traces(exp, dmd, trace_type1, trace_type2):
     """
     Concatenate traces and timestamps for all valid trials for a given DMD and trace type.
     Returns (all_traces, all_timestamps)
     """
     dmd_idx = dmd-1
-    all_timestamps = []
     all_traces = None
-    trial_start_idxs = []
-    discarded_frames = []
-    # for trial in exp.valid_trials[dmd_idx]:
+    slap2_trial_num_frames = []
+    # TODO: calculate discard_frames if it becomes available in the ExperimentSummary
+    # + account for eliminating some discarded_frames from the given traces?
+    discard_frames = []
+
     print(f"getting concatenated traces for dmd {dmd}, trace type {trace_type1}")
-    print(len(harp_data["slap2_start_times"]), len(harp_data["slap2_end_times"]), exp.n_trials, len(exp.valid_trials[dmd_idx]))
-    # print(harp_data["slap2_end_times"] - harp_data["slap2_start_times"])
-    slap2_trial_lengths = []
-    for trial in exp.valid_trials[dmd_idx]:
-        # record the start index of each trial
-        trial_start_idxs.append(len(all_timestamps))
-        trial_idx = trial - 1  # 1-indexed to 0-indexed
+    for trial_idx in range(exp.n_trials):
+        trial = trial_idx + 1  # 0-indexed to 1-indexed
+
+        # invalid trials are defined as having 0 frames
+        if trial not in exp.valid_trials[dmd_idx]:
+            slap2_trial_num_frames.append(0)
+            continue
 
         traces = exp.get_traces(dmd, trial, trace_type1=trace_type1, trace_type2=trace_type2)
         if traces.ndim > 2:
             traces = traces[0]
-        start_trial = harp_data['slap2_start_times'][trial_idx]
-        end_trial = harp_data['slap2_end_times'][trial_idx]
-        num_timepoints = traces.shape[1]
-        slap2_trial_lengths.append(num_timepoints)
-        timestamps = np.linspace(start_trial, end_trial, num_timepoints)
-        # print("%", start_trial, end_trial, num_timepoints)
-        if all_traces is None or len(all_timestamps) == 0:
+
+        # sum(slap2_trial_num_frames) should equal all_traces.shape[1]
+        # i.e. the total number of frames in the session
+        slap2_trial_num_frames.append(traces.shape[1])
+        if all_traces is None:
             all_traces = traces.T
-            all_timestamps = timestamps
         else:
             all_traces = np.concatenate((all_traces, traces.T))
-            all_timestamps = np.concatenate((all_timestamps, timestamps))
 
     print(f"shape of traces: {all_traces.shape}")
-    return all_traces, all_timestamps, np.array(trial_start_idxs), np.array(discarded_frames, dtype=bool)
+    print(f"sum of trial_num_frames: {np.sum(slap2_trial_num_frames)}")
+    assert np.sum(slap2_trial_num_frames) == all_traces.shape[0], "The recorded number of frames does not match the concatenated traces shape"
+    return all_traces, np.array(slap2_trial_num_frames), np.array(discard_frames, dtype=bool)
 
 
 def expsum_mat_to_h5(mat_path, h5_path, harp_path):
@@ -130,16 +131,9 @@ def expsum_mat_to_h5(mat_path, h5_path, harp_path):
     Convert ophys-SCBC-analysis experimentsummary.mat to experiment_summary.h5 with the required structure using ExperimentSummary class.
     Always extracts all HARP arrays and uses timing data for dF, dFF, F0 traces.
     """
-    import h5py
-    import numpy as np
     print(f"Converting {mat_path} to {h5_path}")
     expsum = ExperimentSummary(mat_path)
-    harp_data = harp_utils.extract_harp(harp_path, expected_n_trials=expsum.n_trials)
     with h5py.File(h5_path, "w") as h5:
-        # Save all harp arrays at root for reference
-        # harp_grp = h5.create_group("harp")
-        # for k, v in harp_data.items():
-        #     harp_grp.create_dataset(k, data=v)
         for dmd_idx in range(expsum.n_dmds):
             dmd = dmd_idx+1
             dmd_grp = h5.create_group(f"DMD{dmd}")
@@ -168,17 +162,17 @@ def expsum_mat_to_h5(mat_path, h5_path, harp_path):
 
             # temporal group
             temporal_grp = sources_grp.create_group("temporal")
-            dF_traces, _, _, _ = get_concatenated_traces(expsum, dmd, 'dF', 'denoised', harp_data)
-            dFF_traces, _, _, _ = get_concatenated_traces(expsum, dmd, 'dFF', 'denoised', harp_data)
-            F0_traces, _, trial_start_idxs, discarded_frames = get_concatenated_traces(expsum, dmd, 'F0', None, harp_data)
+            dF_traces, _, _ = get_concatenated_traces(expsum, dmd, 'dF', 'denoised')
+            dFF_traces, _, _ = get_concatenated_traces(expsum, dmd, 'dFF', 'denoised')
+            F0_traces, trial_num_frames, discard_frames = get_concatenated_traces(expsum, dmd, 'F0', None)
             temporal_grp.create_dataset("dF", data=dF_traces)
             temporal_grp.create_dataset("dFF", data=dFF_traces)
             temporal_grp.create_dataset("F0", data=F0_traces)
 
             # frame_info
             fi_grp = dmd_grp.create_group("frame_info")
-            fi_grp.create_dataset("trial_start_idxs", data=trial_start_idxs)
-            fi_grp.create_dataset("discard_frames", data=discarded_frames)
+            fi_grp.create_dataset("trial_num_frames", data=trial_num_frames)
+            fi_grp.create_dataset("discard_frames", data=discard_frames)
 
 
 def generate_metadata_jsons(session_id, session_path, project_name, overwrite: bool = False) -> None:
