@@ -74,6 +74,20 @@ def extract_harp(harp_path, expected_n_trials=None):
     grating_signal = reader.PulseDO2.read()["PulseDO2"].to_numpy()
     grating_times = reader.PulseDO2.read()["PulseDO2"].index.to_numpy()
 
+    # some sessions have a bug where they are missing recorded slap2 trial start times
+    n_missing_starts = len(slap2_end_times) - len(slap2_start_times)
+    if n_missing_starts > 0:
+        est_trial_duration = (slap2_end_times[-len(slap2_start_times):] - slap2_start_times).mean()
+        print(f"We are missing {n_missing_starts} start trial times, backfilling from {slap2_start_times[0]} based on estimated trial duration {est_trial_duration}s.")
+
+        # infer the missing starts
+        missing_starts = slap2_end_times[:n_missing_starts] - est_trial_duration
+        slap2_start_times = np.concatenate([missing_starts, slap2_start_times])
+
+        # extend slap2_start_signal by the same length as slap2_start_times
+        prepend_start_signal = np.full(n_missing_starts, slap2_start_signal[0])
+        slap2_start_signal = np.concatenate([prepend_start_signal, slap2_start_signal])
+
     # Set the time reference (time_0)
     time_reference = slap2_start_times[0]
     # Calculate normalized times
@@ -81,6 +95,9 @@ def extract_harp(harp_path, expected_n_trials=None):
     normalized_slap2_start = slap2_start_times - time_reference
     normalized_slap2_end = slap2_end_times - time_reference
     normalized_analog_times = analog_times - time_reference
+
+    print("="*64, "\n corrected slap2 trial times")
+    print(normalized_slap2_start, normalized_slap2_end, normalized_start_gratings)
 
     time_dict = {
         "analog_times": analog_times,
@@ -98,12 +115,15 @@ def extract_harp(harp_path, expected_n_trials=None):
         "normalized_slap2_end": normalized_slap2_end,
         "normalized_analog_times": normalized_analog_times
     }
+
     if expected_n_trials is not None:
         print('given expected n trials:', expected_n_trials)
         for key in ("slap2_start_signal", "slap2_start_times", "slap2_end_signal", "slap2_end_times", "normalized_slap2_start", "normalized_slap2_end"):
             time_arr = time_dict[key]
             trials_to_slice = len(time_arr) - expected_n_trials
-            print(key, len(time_arr), trials_to_slice)
+            if trials_to_slice < 0:
+                raise Exception('There are more expected trials than recorded harp trials, something is wrong...')
+            print(f"slicing {trials_to_slice} from {key}:{len(time_arr)} to get {expected_n_trials}")
             time_dict[key] = time_dict[key][trials_to_slice:]
     return time_dict
 
@@ -127,16 +147,16 @@ def get_concatenated_timestamps(trace, trial_start_idxs, harp_data):
 def get_concatenated_timestamps_from_num_frames(trace, trial_num_frames, harp_data):
     start_trial_times = harp_data["normalized_slap2_start"]
     end_trial_times = harp_data["normalized_slap2_end"]
-    assert len(start_trial_times) == len(end_trial_times) == len(trial_num_frames), "Length of start times, end times, and trial start indices must be equal"
     # print(len(start_trial_times), len(end_trial_times), len(trial_num_frames), trace.shape[0])
 
-    timestamps = []
-    for i in range(len(trial_start_idxs)):
-        num_frames = trial_num_frames[i]
-        if num_frames == 0:
-            continue
-        trial_timestamps = np.linspace(start_trial_times[i], end_trial_times[i], num_frames)
-        timestamps.append(trial_timestamps)
+    assert len(start_trial_times) == len(end_trial_times) == len(trial_num_frames), "Length of start times, end times, and trial start indices must be equal"
 
-    assert len(timestamps) == len(trace), "Generated timestamps don't match length of trace recording. Either trial_num_frames is wrong or the concatenated trace is wrong."
+    timestamps = []
+    for i, n_frames in enumerate(trial_num_frames):
+        if n_frames == 0:
+            continue
+        trial_timestamps = np.linspace(start_trial_times[i], end_trial_times[i], n_frames)
+        timestamps.extend(trial_timestamps)
+
+    assert len(timestamps) == len(trace), f"Length of generated timestamps {len(timestamps)} don't match length of trace recording {len(trace)}"
     return np.array(timestamps)
