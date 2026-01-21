@@ -5,6 +5,9 @@ import scipy.spatial.distance as distance
 import utils.pickle_functions as pkl
 
 from typing import Union, Sequence, Optional
+from pathlib import Path
+
+
 
 
 def load_sync(path):
@@ -84,6 +87,97 @@ def process_times(sync_file):
 
     return times
 
+def get_ophys_stimulus_timestamps(sync, pkl):
+    """Obtain visual behavior stimuli timing information from a sync *.h5 file.
+
+    Parameters
+    ----------
+    sync_path : Union[str, Path]
+        The path to a sync *.h5 file that contains global timing information
+        about multiple data streams (e.g. behavior, ophys, eye_tracking)
+        during a session.
+
+    Returns
+    -------
+    np.ndarray
+        Timestamps (in seconds) for presented stimulus frames during a
+        behavior + ophys session.
+    """
+    stimulus_timestamps, _ = get_clipped_stim_timestamps(sync, pkl)
+    return stimulus_timestamps
+
+
+
+def get_stim_data_length(filename: str) -> int:
+    """Get stimulus data length from .pkl file.
+
+    Parameters
+    ----------
+    filename : str
+        Path of stimulus data .pkl file.
+
+    Returns
+    -------
+    int
+        Stimulus data length.
+    """
+    stim_data = pkl.load_pkl(filename)
+
+    # A subset of stimulus .pkl files do not have the "vsynccount" field.
+    # MPE *won't* be backfilling the "vsynccount" field for these .pkl files.
+    # So the least worst option is to recalculate the vsync_count.
+    try:
+        vsync_count = stim_data["vsynccount"]
+    except KeyError:
+        vsync_count = len(stim_data["items"]["behavior"]["intervalsms"]) + 1
+
+    return vsync_count
+
+
+def get_behavior_stim_timestamps(sync):
+    try:
+        stim_key =  "vsync_stim"
+        times =  get_falling_edges(sync, stim_key, units="seconds")
+        return times
+    except ValueError:
+        stim_key =  "stim_vsync"
+        times =  get_falling_edges(sync, stim_key, units="seconds")
+        return times
+    except Exception:  
+        raise ValueError("No stimulus stream found in sync file")
+
+def get_clipped_stim_timestamps(sync, pkl_path):
+    timestamps = get_behavior_stim_timestamps(sync)
+    stim_data_length = get_stim_data_length(pkl_path)
+
+    delta = 0
+    print(sync)
+    if stim_data_length is not None and \
+        stim_data_length < len(timestamps):
+        try:
+            stim_key =  "vsync_stim"
+            rising = get_rising_edges(sync, stim_key, units="seconds")
+        except ValueError:
+            stim_key =  "stim_vsync"
+            rising = get_rising_edges(sync, stim_key, units="seconds")
+        except Exception:  
+            raise ValueError("No stimulus stream found in sync file")
+
+        # Some versions of camstim caused a spike when the DAQ is first
+        # initialized. Remove it.
+        if rising[1] - rising[0] > 0.2:
+            print("Initial DAQ spike detected from stimulus, "
+                            "removing it")
+            timestamps = timestamps[1:]
+
+        delta = len(timestamps) - stim_data_length
+        if delta != 0:
+            print("Stim data of length %s has timestamps of "
+                            "length %s",
+                            stim_data_length, len(timestamps))
+    elif stim_data_length is None:
+        print("No data length provided for stim stream")
+    return timestamps, delta
 
 def line_to_bit(sync_file, line):
     """
