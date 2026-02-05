@@ -34,6 +34,12 @@ from aind_data_transfer_models.core import (
     SubmitJobRequest,
     CodeOceanPipelineMonitorConfigs,
 )
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
 
 
 organization_map = {
@@ -51,23 +57,23 @@ USER_EMAIL = "carter.peene@alleninstitute.org"
 
 THIS_FILE_DIR = pl.Path(__file__).parent
 
-# def generate_rig_json(session: np_session.Session, overwrite: bool = False):
-#     if (session.npexp_path / 'rig.json').exists():
-#         print('rig.json already exists')
-#         if not overwrite:
-#             return
-#         print('overwriting')
+def generate_rig_json(session: np_session.Session, overwrite: bool = False):
+    if (session.npexp_path / 'rig.json').exists():
+        print('rig.json already exists')
+        if not overwrite:
+            return
+        print('overwriting')
 
-#     platform_path = next(session.npexp_path.glob(f'{session.folder}_platform*.json'))
-#     platform_json = json.loads(platform_path.read_text())
-#     rig_id = platform_json['rig_id']
+    platform_path = next(session.npexp_path.glob(f'{session.folder}_platform*.json'))
+    platform_json = json.loads(platform_path.read_text())
+    rig_id = platform_json['rig_id']
 
-#     rig_json_template = json.loads((pl.Path(__file__).parent / 'openscope_rig.json').read_text())
-#     rig_json_template['rig_id'] = rig_id
-#     rig_json_template['modification_date'] = str(datetime.date.today())
+    rig_json_template = json.loads((THIS_FILE_DIR.parent / 'data' / 'openscope_rig.json').read_text())
+    rig_json_template['rig_id'] = rig_id
+    rig_json_template['modification_date'] = str(datetime.date.today())
 
-#     with open(session.npexp_path / 'rig.json', 'w', encoding='utf-8') as f:
-#         json.dump(rig_json_template, f, ensure_ascii=False, indent=4)
+    with open(session.npexp_path / 'rig.json', 'w', encoding='utf-8') as f:
+        json.dump(rig_json_template, f, ensure_ascii=False, indent=4)
 
 
 # def generate_data_description_json(project_name: str, session: np_session.Session, overwrite: bool = False) -> None:
@@ -140,6 +146,70 @@ def fetch_rig_json(session: np_session.Session):
     print(res)
 
 
+def get_co_configs():
+    # return {
+    #     schema_modalities.BEHAVIOR_VIDEOS.abbreviation: PipelineMonitorSettings(
+    #             run_params=RunParams(
+    #                 pipeline_id="7935d378-ce0e-4129-8774-81e9c8573bc2",
+    #                 data_assets=[DataAssetsRunParam(id="", mount="")],
+    #                 parameters=[],
+    #             ),
+    #             capture_settings=CaptureSettings(
+    #                 process_name_suffix="eye-tracking",
+    #                 target={"aws": {"bucket": "aind-open-data"}},
+    #                 permissions={"everyone": "viewer"},
+    #                 tags=[DataLevel.DERIVED.value, "eye_tracking"],
+    #             ),
+    #         ),
+    #     schema_modalities.ECEPHYS.abbreviation: PipelineMonitorSettings(
+    #             run_params=RunParams(
+    #                 pipeline_id="daef0b82-2f12-4122-964d-efa5f608ad69",
+    #                 data_assets=[DataAssetsRunParam(id="", mount="ecephys")],
+    #                 parameters=[],
+    #             ),
+    #             capture_settings=CaptureSettings(
+    #                 process_name_suffix="sorted",
+    #                 target={"aws": {"bucket": "aind-open-data"}},
+    #                 permissions={"everyone": "viewer"},
+    #                 tags=[DataLevel.DERIVED.value, "ecephys_sorted"],
+    #             ),
+    #         )
+    #     }
+
+    # eye_tracking_settings_json = {
+    #     "run_params": {
+    #         "pipeline_id": "7935d378-ce0e-4129-8774-81e9c8573bc2",
+    #         "data_assets": [{"id": "", "mount": ""}],
+    #         "parameters": []
+    #     },
+    #     "capture_settings": {
+    #         "process_name_suffix": "eye_tracking",
+    #         "tags": ["derived", "eye_tracking"],
+    #         "permissions": {"everyone": "viewer"},
+    #         "target": {"aws": {"bucket": "aind-open-data"}},
+    #         "custom_metadata": {"data level": "derived",},
+    #     }
+    # }
+    spike_sorting_settings_json = {
+        "run_params": {
+            "pipeline_id": "daef0b82-2f12-4122-964d-efa5f608ad69",
+            "data_assets": [{"id": "", "mount": "ecephys"}],
+            "parameters": []
+        },
+        "capture_settings": {
+            "process_name_suffix": "sorted",
+            "tags": ["derived", "ecephys_sorted"],
+            "permissions": {"everyone": "viewer"},
+            "target": {"aws": {"bucket": "aind-open-data"}},
+            "custom_metadata": {"data level": "derived",},
+        }
+    }
+
+    return {
+        schema_modalities.ECEPHYS.abbreviation: PipelineMonitorSettings(**spike_sorting_settings_json)
+    }
+
+
 def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool = False, overwrite: bool = False, test_upload: bool = False) -> None:
     log = []
     for session_id in session_ids:
@@ -149,16 +219,16 @@ def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool 
         print(session.npexp_path)
         # project_name = generate_session_json(session_id, session, overwrite=overwrite)
         # generate_data_description_json(project_name, session, overwrite=overwrite)
-        # generate_rig_json(session, overwrite=overwrite)
+        generate_rig_json(session, overwrite=overwrite)
 
         print(session.folder)
         platform_path = next(session.npexp_path.glob(f'{session.folder}_platform*.json'))
         platform_json = json.loads(platform_path.read_text())
         project_name = platform_json['project']
 
-        projects_info = pd.read_csv(THIS_FILE_DIR / 'data' / 'projects_info.csv', index_col='project_name')
+        projects_info = pd.read_csv(THIS_FILE_DIR.parent / 'data' / 'projects_info.csv', index_col='project_name')
         project_info = projects_info.loc[project_name]
-        
+
         openscope_session_settings = CamstimEphysSessionSettings(
             session_type="ecephys",
             project_name=project_name,
@@ -171,51 +241,20 @@ def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool 
             output_directory=session.npexp_path
         )
         session_mapper = CamstimEphysSessionEtl(openscope_session_settings)
-        session_mapper.run_job()
-
-        # session_settings = SessionSettings(job_settings=openscope_session_settings)
-        # metadata_job_settings = GatherMetadataJobSettings(directory_to_write_to="stage", session_settings=session_settings)
+        print("DONE")
+        return
+        # session_mapper.run_job()
+        # session_mapper.build_behavior_table()
         
-        # codeocean_configs = CodeOceanPipelineMonitorConfigs(
-        #     register_data_settings=DataAssetParams(
-        #         name="",
-        #         mount="",
-        #         tags=[DataLevel.RAW.value, "ecephys"],
-        #         custom_metadata={"data level": DataLevel.RAW.value},
-        #     ),
-        #     pipeline_monitor_capsule_settings=[
-        #         PipelineMonitorSettings(
-        #             run_params=RunParams(
-        #                 pipeline_id="7935d378-ce0e-4129-8774-81e9c8573bc2",
-        #                 data_assets=[DataAssetsRunParam(id="", mount="")],
-        #                 parameters=[],
-        #             ),
-        #             capture_settings=CaptureSettings(
-        #                 process_name_suffix="eye-tracking",
-        #                 tags=[DataLevel.DERIVED.value, "eye_tracking"],
-        #             ),
-        #         ),
-        #         PipelineMonitorSettings(
-        #             run_params=RunParams(
-        #                 pipeline_id="daef0b82-2f12-4122-964d-efa5f608ad69",
-        #                 data_assets=[DataAssetsRunParam(id="", mount="ecephys")],
-        #                 parameters=[],
-        #             ),
-        #             capture_settings=CaptureSettings(
-        #                 process_name_suffix="sorted",
-        #                 tags=[DataLevel.DERIVED.value, "ecephys_sorted"],
-        #             ),
-        #         )
 
-        #     ],
-        # )
-        # np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, metadata_configs=metadata_job_settings, codeocean_configs=codeocean_configs)
+        codeocean_configs = get_co_configs()
         if not no_upload:
-            try:
-                np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, test=test_upload)
-                log.append(f"{session_id} upload succesfully triggered!")
-            except Exception as e:
-                log.append(f"{session_id} upload failed with error: {e}")
+            # try:
+            print(session_id)
+            np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, test=test_upload, codeocean_pipeline_settings=codeocean_configs)
+            log.append(f"{session_id} upload succesfully triggered!")
+            # except Exception as e:
+            #     log.append(f"{session_id} upload failed with error: {e}")
         if no_upload:
             print("not uploading!")
             log.append(f"{session_id} upload skipped")

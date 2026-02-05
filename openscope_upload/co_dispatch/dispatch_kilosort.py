@@ -14,19 +14,8 @@ def main():
     pipeline_id = "daef0b82-2f12-4122-964d-efa5f608ad69"
 
     datasets_ids = (
-        ("752311", "001c3101-c190-4b0d-a0f7-653dc6e2d8ab"),
-        ("752312", "80686a5f-b0c7-4f0a-95e6-adac5b4c6cfa"),
-        ("752312", "84d79052-83c1-43bd-84f4-af7e4ba6d4cd"),
-        ("753316", "1fc4ee81-feef-430e-aae3-93479d9d908f"),
-        ("760322", "9bd673fd-fd2d-4a2e-80f9-10bfe83c002b"),
-        ("760322", "21f268dd-44f3-47ab-97ed-dd869b8ac373"),
-        ("767925", "a4b78c15-4c43-4b5d-bba6-8545672f3b34"),
-        ("752309", "7979e980-4c7b-4cc4-b26c-1376ecc8fcd7"),
-        ("752309", "4d9d1787-c7d8-41e9-885e-ff6591483516"),
-        ("760324", "92c69c49-d180-4bad-9868-85b83c72094e"),
-        ("760324", "fb50c156-a5bc-44be-8c53-90a18ac6832b"),
-        ("767926", "ef4133b1-919d-4408-88d1-7cfa3a83c0a7"),
-        ("767926", "832fc1be-2f39-4207-a501-9344bbab0ec4")
+        ("815152", "f5415d16-9501-48d1-83cb-4b58ca2081e1"),
+        ("815150", "21a1239e-3740-4248-9f94-c120109575cf")
     )
     co_api_token = os.getenv("CODEOCEAN_TOKEN")
     co_domain = "https://codeocean.allenneuraldynamics.org"
