@@ -11,11 +11,14 @@ import os
 
 def main():
     # id for NWB Kilosort pipeline
-    pipeline_id = "daef0b82-2f12-4122-964d-efa5f608ad69"
+    # pipeline_id = "daef0b82-2f12-4122-964d-efa5f608ad69"
+    pipeline_id = "e16bc028-30b1-4aa2-89f9-a2cb27aaf844"
 
     datasets_ids = (
-        ("815152", "f5415d16-9501-48d1-83cb-4b58ca2081e1"),
-        ("815150", "21a1239e-3740-4248-9f94-c120109575cf")
+        ("830794", "7b676266-5bce-488f-a9f6-d267445906b7"),
+        ("830794", "6b8ed5e2-30ce-404b-b69b-863c7d7d1998"),
+        ("830794", "efae5289-eb8e-4024-9c35-0c58ab34c54d"),
+        ("830794", "10c17d4c-6c93-43c0-9daf-1888e0599b09"),
     )
     co_api_token = os.getenv("CODEOCEAN_TOKEN")
     co_domain = "https://codeocean.allenneuraldynamics.org"
@@ -27,7 +30,7 @@ def main():
         data_assets=[
             DataAssetsRunParam(id=session_asset_id,mount="ecephys"),
         ]   
-        run_params = RunParams(capsule_id=pipeline_id,data_assets=data_assets,processes=[])
+        run_params = RunParams(capsule_id=pipeline_id,version=4,data_assets=data_assets,processes=[])
 
         print(f"\n\n\nRunning dataset {identifier}")
         computation = client.computations.run_capsule(run_params)

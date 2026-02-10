@@ -18,8 +18,6 @@ from aind_metadata_mapper.open_ephys.models import JobSettings as CamstimEphysSe
 
 from aind_metadata_mapper.open_ephys.camstim_ephys_session import CamstimEphysSessionEtl
 
-from utils import process_ephys_sync as stim_utils
-
 from codeocean.computation import RunParams, DataAssetsRunParam
 from codeocean.data_asset import DataAssetParams
 from aind_codeocean_pipeline_monitor.models import (
@@ -28,12 +26,12 @@ from aind_codeocean_pipeline_monitor.models import (
 )
 from aind_data_schema_models.data_name_patterns import DataLevel
 
-from aind_data_transfer_models.core import (
-    ModalityConfigs,
-    BasicUploadJobConfigs,
-    SubmitJobRequest,
-    CodeOceanPipelineMonitorConfigs,
-)
+# from aind_data_transfer_models.core import (
+#     ModalityConfigs,
+#     BasicUploadJobConfigs,
+#     SubmitJobRequest,
+#     CodeOceanPipelineMonitorConfigs,
+# )
 import logging
 
 logging.basicConfig(
@@ -192,7 +190,8 @@ def get_co_configs():
     # }
     spike_sorting_settings_json = {
         "run_params": {
-            "pipeline_id": "daef0b82-2f12-4122-964d-efa5f608ad69",
+            # "pipeline_id": "daef0b82-2f12-4122-964d-efa5f608ad69",
+            "pipeline_id": "e16bc028-30b1-4aa2-89f9-a2cb27aaf844",
             "data_assets": [{"id": "", "mount": "ecephys"}],
             "parameters": []
         },
@@ -241,10 +240,7 @@ def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool 
             output_directory=session.npexp_path
         )
         session_mapper = CamstimEphysSessionEtl(openscope_session_settings)
-        print("DONE")
-        return
-        # session_mapper.run_job()
-        # session_mapper.build_behavior_table()
+        session_mapper.run_job()
         
 
         codeocean_configs = get_co_configs()
