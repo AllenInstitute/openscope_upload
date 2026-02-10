@@ -1,0 +1,26 @@
+[project]
+name = "openscope-upload"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aind-codeocean-api>=0.5.1",
+    "aind-codeocean-pipeline-monitor[full]>=0.11.1",
+    "aind-data-access-api>=1.9.2",
+    "aind-data-schema>=1.4.0",
+    "aind-data-schema-models>=0.7.5",
+    "aind-metadata-mapper>=0.29.3",
+    "codeocean>=0.14.0",
+    "h5py>=3.15.1",
+    "harp-python>=0.4.1",
+    "hdmf>=4.2.0",
+    "hdmf-zarr>=0.12.0",
+    "np-codeocean>=0.3.15",
+    "np-session>=0.6.48",
+    "npc-ephys>=0.1.41",
+    "npc-mvr>=0.1.15",
+    "numpy>=1.26.4",
+    "pandas>=2.3.3",
+    "pynwb>=3.0.0",
+]
