@@ -98,6 +98,29 @@ def find_co_assets_by_mouse_ids(mouse_ids: list[int]) -> dict[int, list[str]]:
 
 
 def get_session_asset_row(mouse_id, session_id, session_datetime_str, assets, take_newest=False):
+    """
+    Extract Code Ocean asset information for a single session.
+    
+    Parameters
+    ----------
+    mouse_id : str
+        The mouse/subject ID
+    session_id : str or None
+        The session ID. If None, will be auto-generated from mouse_id and session_datetime_str
+    session_datetime_str : str
+        Session datetime in YYYY-MM-DD format
+    assets : list
+        List of Code Ocean asset objects to search through
+    take_newest : bool, default=False
+        If True, return only the most recent asset ID for each asset type.
+        If False, return tuples of all matching assets
+        
+    Returns
+    -------
+    dict
+        Dictionary with keys: mouse_id, session_id, session_datetime, session_assets,
+        processed_assets, nwb_assets
+    """
     if session_id is None:
         session_id = f"{mouse_id}_{session_datetime_str}"
     
@@ -184,6 +207,28 @@ def survey_co_assets(session_ids, take_newest=True, output_csv_name=None):
 
 
 def main():
+    """
+    Command-line interface for surveying Code Ocean assets.
+    
+    Accepts session IDs either as command-line arguments or from a CSV file.
+    Session IDs can be in two formats:
+    - mouseid_datetimeT (e.g., 776270_20250702T115006)
+    - sessionid_mouseid_datetime (e.g., 1488336340_830794_20260126)
+    
+    CSV files should have columns: mouse_id, sessionid, date_of_acquisition (MM/DD/YYYY)
+    
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with asset information for each session
+        
+    Examples
+    --------
+    From command line:
+    
+    $ python co_survey.py 803496_20250702T153326 --output_csv_name my_output
+    $ python co_survey.py --session_ids_csv ./data/sessions.csv --take_newest False
+    """
     parser = argparse.ArgumentParser(description="Convert experimentsummary.mat to experiment_summary.h5.")
     parser.add_argument('session_ids', nargs='*', help='one or more session IDs in format sessionid_mouseid_datetime (e.g., 1488336340_830794_20260126)')
     parser.add_argument("--session_ids_csv", type=str, help="CSV file containing session IDs")
