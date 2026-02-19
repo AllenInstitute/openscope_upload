@@ -98,6 +98,9 @@ def find_co_assets_by_mouse_ids(mouse_ids: list[int]) -> dict[int, list[str]]:
 
 
 def get_session_asset_row(mouse_id, session_id, session_datetime_str, assets, take_newest=False):
+    if session_id is None:
+        session_id = f"{mouse_id}_{session_datetime_str}"
+    
     session_assets = []
     processed_assets = []
     nwb_assets = []
@@ -138,45 +141,111 @@ def get_session_asset_row(mouse_id, session_id, session_datetime_str, assets, ta
     return session_assets
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Convert experimentsummary.mat to experiment_summary.h5.")
-    # parser.add_argument('mouse_ids', nargs='+', help='one or more session IDs for slap2 sessions (mouse_date)')
-    parser.add_argument("--mouse_ids_csv", type=str, required=True, help="CSV file containing mouse IDs")
-    parser.add_argument("--take_newest", type=bool, default=False, help="Take the most recent asset for each asset type")
-    parser.add_argument("--output_csv_name", type=str, default="co_session_assets", help="Output CSV file name (without path)")
-    args = parser.parse_args()
-    docdb_api_client = MetadataDbClient(
-        host=API_GATEWAY_HOST,
-        database=DATABASE,
-        collection=COLLECTION,
-    )
-    mouse_ids_csv = Path(args.mouse_ids_csv)
-    if not mouse_ids_csv.is_absolute():
-        mouse_ids_csvs = THIS_FILE_PATH.parent.parent.rglob(str(mouse_ids_csv))
-        mouse_ids_csv = next(mouse_ids_csvs)
-    if len(list(mouse_ids_csvs)) > 1:
-        raise ValueError(f"Multiple files found for {mouse_ids_csv}")
+
+def survey_co_assets(session_ids, take_newest=True, output_csv_name=None):
+    """
+    Survey Code Ocean assets for sessions in the provided dataframe.
     
-    mouse_ids_csv = pd.read_csv(mouse_ids_csv)
-    all_mouse_ids = [str(mid) for mid in mouse_ids_csv['mouse_id']]
+    Parameters
+    ----------
+    session_ids : pd.DataFrame
+        DataFrame with columns: 'mouse_id', 'sessionid', 'date_of_acquisition' (MM/DD/YYYY format)
+    take_newest : bool, default=True
+        If True, only return the most recent asset for each asset type
+    output_csv_name : str, optional
+        If provided, writes results to CSV in data/ directory with this name
+        
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns: mouse_id, session_id, session_datetime, session_assets, processed_assets, nwb_assets
+    """
+    all_mouse_ids = [str(mid) for mid in session_ids['mouse_id']]
     mouse_assets = find_co_assets_by_mouse_ids(all_mouse_ids)
 
-    # print([asset.name for asset in mouse_assets[all_mouse_ids[0]]])
-
     df_rows = []
-    session_ids = set()
-    for i, row in mouse_ids_csv.iterrows():
+    session_ids_seen = set()
+    for i, row in session_ids.iterrows():
         mouse_id = str(row['mouse_id'])
-        # print(i, mouse_id)
         session_id = str(row['sessionid'])
-        if session_id in session_ids:
+        if session_id in session_ids_seen:
             continue
-        session_ids.add(session_id)
+        session_ids_seen.add(session_id)
         datetime_string = datetime.strptime(row['date_of_acquisition'], "%m/%d/%Y").strftime("%Y-%m-%d")
-        df_rows.append(get_session_asset_row(mouse_id, session_id, datetime_string, mouse_assets[mouse_id], take_newest=args.take_newest))
+        df_rows.append(get_session_asset_row(mouse_id, session_id, datetime_string, mouse_assets[mouse_id], take_newest=take_newest))
     sessions_df = pd.DataFrame(df_rows)
-    output_csv = THIS_FILE_PATH.parent.parent / "data" / f"{args.output_csv_name}.csv"
-    sessions_df.to_csv(output_csv, index=False)
+    
+    # Only write CSV if output_csv_name is provided
+    if output_csv_name:
+        output_csv = THIS_FILE_PATH.parent.parent / "data" / f"{output_csv_name}.csv"
+        sessions_df.to_csv(output_csv, index=False)
+    
+    return sessions_df
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Convert experimentsummary.mat to experiment_summary.h5.")
+    parser.add_argument('session_ids', nargs='*', help='one or more session IDs in format sessionid_mouseid_datetime (e.g., 1488336340_830794_20260126)')
+    parser.add_argument("--session_ids_csv", type=str, help="CSV file containing session IDs")
+    parser.add_argument("--take_newest", type=bool, default=True, help="Take the most recent asset for each asset type")
+    parser.add_argument("--output_csv_name", type=str, default=None, help="Output CSV file name (without path). If not provided, returns dataframe without writing to file.")
+    args = parser.parse_args()
+    
+    # Validate that either session_ids or session_ids_csv is provided
+    if not args.session_ids and not args.session_ids_csv:
+        parser.error("Either provide session IDs as arguments or use --session_ids_csv")
+    if args.session_ids and args.session_ids_csv:
+        parser.error("Cannot use both session ID arguments and --session_ids_csv at the same time")
+    
+    # Get mouse IDs either from command line session IDs or CSV
+    if args.session_ids_csv:
+        session_ids_path = Path(args.session_ids_csv)
+        if not session_ids_path.is_absolute():
+            session_idss = THIS_FILE_PATH.parent.parent.rglob(str(session_ids_path))
+            session_ids_path = next(session_idss)
+        if len(list(session_idss)) > 1:
+            raise ValueError(f"Multiple files found for {session_ids_path}")
+        
+        session_ids = pd.read_csv(session_ids_path)
+    else:
+        # Parse session IDs in format mouseid_datetimeT or sessionid_mouseid_datetime
+        parsed_sessions = []
+        for session_id in args.session_ids:
+            parts = session_id.split('_')
+            
+            if len(parts) == 2:
+                # Format: mouseid_datetimeT (e.g., 776270_20250702T115006)
+                mouse_id, datetime_str = parts
+                if 'T' in datetime_str:
+                    # Parse datetime with time component
+                    try:
+                        dt = datetime.strptime(datetime_str, "%Y%m%dT%H%M%S")
+                        date_formatted = dt.strftime("%m/%d/%Y")
+                    except ValueError:
+                        raise ValueError(f"Invalid datetime format in session ID: {session_id}. Expected YYYYMMDDTHHMMSS")
+                else:
+                    raise ValueError(f"Invalid session ID format: {session_id}. Expected mouseid_datetimeT")
+            elif len(parts) == 3:
+                # Format: sessionid_mouseid_datetime (e.g., 1488336340_830794_20260126)
+                _, mouse_id, datetime_str = parts
+                try:
+                    dt = datetime.strptime(datetime_str, "%Y%m%d")
+                    date_formatted = dt.strftime("%m/%d/%Y")
+                except ValueError:
+                    raise ValueError(f"Invalid datetime format in session ID: {session_id}. Expected YYYYMMDD")
+            else:
+                raise ValueError(f"Invalid session ID format: {session_id}. Expected mouseid_datetimeT or sessionid_mouseid_datetime")
+            
+            parsed_sessions.append({
+                'sessionid': session_id,  # Full session ID
+                'mouse_id': mouse_id,
+                'date_of_acquisition': date_formatted
+            })
+        
+        session_ids = pd.DataFrame(parsed_sessions)
+    
+    # Call the core function with the prepared dataframe
+    return survey_co_assets(session_ids, take_newest=args.take_newest, output_csv_name=args.output_csv_name)
 
 
 if __name__ == "__main__":
