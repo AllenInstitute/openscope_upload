@@ -6,5 +6,4 @@ setup(
     packages=find_packages(),
     description="Tools for OpenScope data upload and processing",
     author="Your Name",
-    install_requires=[],
 )
