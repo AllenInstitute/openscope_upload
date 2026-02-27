@@ -17,11 +17,14 @@ from io import StringIO
 # canonical monitor capsule
 # monitor_pipeline_capsule_id = "fbdddd96-6d2a-4e40-88c8-45f3f84cfaf3"
 
-# carter's personal use
+# carter's personal use OLD
 # monitor_pipeline_capsule_id = "779ec012-5d39-4cff-a3fb-23b050903d02"
 
+# carter's personal use NEW
+monitor_pipeline_capsule_id = "a8a0f763-6d31-420f-95c6-f247de8ac8ea"
+
 # all user's monitor
-monitor_pipeline_capsule_id = "567b5b98-8d41-413b-9375-9ca610ca2fd3"
+# monitor_pipeline_capsule_id = "567b5b98-8d41-413b-9375-9ca610ca2fd3"
 
 co_api_token = os.getenv("CODEOCEAN_TOKEN")
 co_domain = "https://codeocean.allenneuraldynamics.org"
@@ -36,8 +39,10 @@ def get_monitor_settings(pipeline_id, subject_id, data_assets, dandiset_id) -> P
             processes=[
                 PipelineProcessParams(name="capsule_carters_aind_dandi_upload_9",named_parameters=[NamedRunParam(param_name='dandiset_id',value=dandiset_id),
                                                                                                    NamedRunParam(param_name='acq_suffix',value='synced')]),
-                PipelineProcessParams(name="capsule_aind_stimulus_camstim_nwb_4",named_parameters=[NamedRunParam(param_name='input_csv_dir',value='stim_tables')]),
-                PipelineProcessParams(name="capsule_combine_nwb_8",named_parameters=[NamedRunParam(param_name='output_format',value='hdf5')]),
+                PipelineProcessParams(name="capsule_aind_stimulus_camstim_nwb_vismo_4",named_parameters=[NamedRunParam(param_name='input_csv_dir',value='stim_tables')]),
+                PipelineProcessParams(name="capsule_carters_combine_nwb_8",named_parameters=[NamedRunParam(param_name='output_format',value='hdf5')]),
+                PipelineProcessParams(name="capsule_aind_running_speed_nwb_3",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
+                PipelineProcessParams(name="capsule_aind_eye_tracking_nwb_7",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
             ]
         ),
         capture_settings={

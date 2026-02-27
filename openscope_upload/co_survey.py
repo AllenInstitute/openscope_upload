@@ -119,25 +119,36 @@ def get_session_asset_row(mouse_id, session_id, session_datetime_str, assets, ta
     -------
     dict
         Dictionary with keys: mouse_id, session_id, session_datetime, session_assets,
-        processed_assets, nwb_assets
+        processed_assets, ccf_assets, nwb_assets
     """
     if session_id is None:
         session_id = f"{mouse_id}_{session_datetime_str}"
     
     session_assets = []
     processed_assets = []
+    ccf_assets = []
     nwb_assets = []
     has_non_output = lambda asset: asset.files > 1
+    print(f"Assets for mouse id {mouse_id}:")
     for asset in assets:
         if mouse_id not in asset.name:
             continue
+        
+        # Check for CCF assets first (only require mouse_id, not datetime)
+        if ('ccf' in asset.name.lower() or 'ibl' in asset.name.lower()) and has_non_output(asset):
+            ccf_assets.append(asset)
+            print(asset.name)
+            continue
+        
+        # For other asset types, require the datetime string
         if f"{mouse_id}_{session_datetime_str}" not in asset.name:
             continue
+        print(asset.name)
 
         try:
             if 'nwb' in asset.name.lower() and has_non_output(asset):
                 nwb_assets.append(asset)
-            elif 'processed' in asset.name.lower() and has_non_output(asset):
+            elif ('processed' in asset.name.lower() or 'sorted' in asset.name.lower()) and has_non_output(asset):
                 processed_assets.append(asset)
             elif has_non_output(asset):
                 session_assets.append(asset)
@@ -147,6 +158,7 @@ def get_session_asset_row(mouse_id, session_id, session_datetime_str, assets, ta
     sort_by_create = lambda asset: asset.created
     session_asset_ids = [asset.id for asset in sorted(session_assets, key=sort_by_create)]
     processed_asset_ids = [asset.id for asset in sorted(processed_assets, key=sort_by_create)]
+    ccf_asset_ids = [asset.id for asset in sorted(ccf_assets, key=sort_by_create)]
     nwb_asset_ids = [asset.id for asset in sorted(nwb_assets, key=sort_by_create)]
 
     session_assets = {
@@ -155,11 +167,13 @@ def get_session_asset_row(mouse_id, session_id, session_datetime_str, assets, ta
         "session_datetime": session_datetime_str,
         "session_assets": str(tuple(session_assets)),
         "processed_assets": str(tuple(processed_assets)),
+        "ccf_assets": str(tuple(ccf_assets)),
         "nwb_assets": str(tuple(nwb_assets))
     }
     if take_newest:
         session_assets["session_assets"] = str(session_asset_ids[-1]) if session_asset_ids else ""
         session_assets["processed_assets"] = str(processed_asset_ids[-1]) if processed_asset_ids else ""
+        session_assets["ccf_assets"] = str(ccf_asset_ids[-1]) if ccf_asset_ids else ""
         session_assets["nwb_assets"] = str(nwb_asset_ids[-1]) if nwb_asset_ids else ""
     return session_assets
 
@@ -181,13 +195,14 @@ def survey_co_assets(session_ids, take_newest=True, output_csv_name=None):
     Returns
     -------
     pd.DataFrame
-        DataFrame with columns: mouse_id, session_id, session_datetime, session_assets, processed_assets, nwb_assets
+        DataFrame with columns: mouse_id, session_id, session_datetime, session_assets, processed_assets, ccf_assets, nwb_assets
     """
     all_mouse_ids = [str(mid) for mid in session_ids['mouse_id']]
     mouse_assets = find_co_assets_by_mouse_ids(all_mouse_ids)
 
     df_rows = []
     session_ids_seen = set()
+    print(session_ids.columns)
     for i, row in session_ids.iterrows():
         mouse_id = str(row['mouse_id'])
         session_id = str(row['sessionid'])
@@ -198,12 +213,97 @@ def survey_co_assets(session_ids, take_newest=True, output_csv_name=None):
         df_rows.append(get_session_asset_row(mouse_id, session_id, datetime_string, mouse_assets[mouse_id], take_newest=take_newest))
     sessions_df = pd.DataFrame(df_rows)
     
+    # Remove columns that are empty for all sessions
+    asset_columns = ['session_assets', 'processed_assets', 'ccf_assets', 'nwb_assets']
+    for col in asset_columns:
+        if col in sessions_df.columns:
+            # Check if all values are empty strings or empty tuples
+            if sessions_df[col].apply(lambda x: x == "" or x == "()").all():
+                sessions_df = sessions_df.drop(columns=[col])
+    
     # Only write CSV if output_csv_name is provided
     if output_csv_name:
         output_csv = THIS_FILE_PATH.parent.parent / "data" / f"{output_csv_name}.csv"
         sessions_df.to_csv(output_csv, index=False)
     
     return sessions_df
+
+
+def parse_session_id(session_id: str) -> dict:
+    """
+    Parse a session ID string into its components.
+    
+    Supported formats:
+    - mouseid_datetimeT (e.g., 776270_20250702T115006)
+    - mouseid_date_time (e.g., 828409_2025-11-11_14-41-13)
+    - sessionid_mouseid_datetime (e.g., 1488336340_830794_20260126)
+    - modality_mouseid_date_time (e.g., ecephys_830794_2026-01-28_11-01-44)
+    
+    Parameters
+    ----------
+    session_id : str
+        The session ID string to parse
+        
+    Returns
+    -------
+    dict or None
+        Dictionary with keys: 'sessionid', 'mouse_id', 'date_of_acquisition'
+        Returns None if session_id is 'aborted'
+    """
+    # Skip aborted sessions
+    if session_id.lower() == 'aborted':
+        return None
+    
+    parts = session_id.split('_')
+    
+    if len(parts) == 2:
+        # Format: mouseid_datetimeT (e.g., 776270_20250702T115006)
+        mouse_id, datetime_str = parts
+        if 'T' in datetime_str:
+            # Parse datetime with time component
+            try:
+                dt = datetime.strptime(datetime_str, "%Y%m%dT%H%M%S")
+                date_formatted = dt.strftime("%m/%d/%Y")
+            except ValueError:
+                raise ValueError(f"Invalid datetime format in session ID: {session_id}. Expected YYYYMMDDTHHMMSS")
+        else:
+            raise ValueError(f"Invalid session ID format: {session_id}. Expected mouseid_datetimeT")
+    elif len(parts) == 3:
+        # Check if second part contains dash (indicates date format)
+        if '-' in parts[1]:
+            # Format: mouseid_date_time (e.g., 828409_2025-11-11_14-41-13)
+            mouse_id, date_str, time_str = parts
+            datetime_str = f"{date_str}_{time_str}"
+            try:
+                dt = datetime.strptime(datetime_str, "%Y-%m-%d_%H-%M-%S")
+                date_formatted = dt.strftime("%m/%d/%Y")
+            except ValueError:
+                raise ValueError(f"Invalid datetime format in session ID: {session_id}. Expected YYYY-MM-DD_HH-MM-SS")
+        else:
+            # Format: sessionid_mouseid_datetime (e.g., 1488336340_830794_20260126)
+            _, mouse_id, datetime_str = parts
+            try:
+                dt = datetime.strptime(datetime_str, "%Y%m%d")
+                date_formatted = dt.strftime("%m/%d/%Y")
+            except ValueError:
+                raise ValueError(f"Invalid datetime format in session ID: {session_id}. Expected YYYYMMDD")
+    elif len(parts) == 4:
+        # Format: modality_mouseid_date_time (e.g., ecephys_830794_2026-01-28_11-01-44)
+        modality, mouse_id, date_str, time_str = parts
+        datetime_str = f"{date_str}_{time_str}"
+        try:
+            dt = datetime.strptime(datetime_str, "%Y-%m-%d_%H-%M-%S")
+            date_formatted = dt.strftime("%m/%d/%Y")
+        except ValueError:
+            raise ValueError(f"Invalid datetime format in session ID: {session_id}. Expected YYYY-MM-DD_HH-MM-SS")
+    else:
+        raise ValueError(f"Invalid session ID format: {session_id}. Expected mouseid_datetimeT, mouseid_date_time, sessionid_mouseid_datetime, or modality_mouseid_date_time")
+    
+    return {
+        'sessionid': session_id,  # Full session ID
+        'mouse_id': mouse_id,
+        'date_of_acquisition': date_formatted
+    }
 
 
 def main():
@@ -254,38 +354,14 @@ def main():
         session_ids = pd.read_csv(session_ids_path)
     else:
         # Parse session IDs in format mouseid_datetimeT or sessionid_mouseid_datetime
-        parsed_sessions = []
-        for session_id in args.session_ids:
-            parts = session_id.split('_')
-            
-            if len(parts) == 2:
-                # Format: mouseid_datetimeT (e.g., 776270_20250702T115006)
-                mouse_id, datetime_str = parts
-                if 'T' in datetime_str:
-                    # Parse datetime with time component
-                    try:
-                        dt = datetime.strptime(datetime_str, "%Y%m%dT%H%M%S")
-                        date_formatted = dt.strftime("%m/%d/%Y")
-                    except ValueError:
-                        raise ValueError(f"Invalid datetime format in session ID: {session_id}. Expected YYYYMMDDTHHMMSS")
-                else:
-                    raise ValueError(f"Invalid session ID format: {session_id}. Expected mouseid_datetimeT")
-            elif len(parts) == 3:
-                # Format: sessionid_mouseid_datetime (e.g., 1488336340_830794_20260126)
-                _, mouse_id, datetime_str = parts
-                try:
-                    dt = datetime.strptime(datetime_str, "%Y%m%d")
-                    date_formatted = dt.strftime("%m/%d/%Y")
-                except ValueError:
-                    raise ValueError(f"Invalid datetime format in session ID: {session_id}. Expected YYYYMMDD")
-            else:
-                raise ValueError(f"Invalid session ID format: {session_id}. Expected mouseid_datetimeT or sessionid_mouseid_datetime")
-            
-            parsed_sessions.append({
-                'sessionid': session_id,  # Full session ID
-                'mouse_id': mouse_id,
-                'date_of_acquisition': date_formatted
-            })
+        # Split by any whitespace (spaces, tabs, newlines) and filter out empty strings
+        all_session_ids = []
+        for item in args.session_ids:
+            all_session_ids.extend(item.split())
+        
+        parsed_sessions = [parse_session_id(session_id) for session_id in all_session_ids]
+        # Filter out None values (aborted sessions)
+        parsed_sessions = [s for s in parsed_sessions if s is not None]
         
         session_ids = pd.DataFrame(parsed_sessions)
     
