@@ -27,10 +27,15 @@ from io import StringIO
 # monitor_pipeline_capsule_id = "b8d1f143-d0f6-40d7-b5a3-cb1f1eb85bc4"
 
 # carter's monitor will run with my credentials
-monitor_pipeline_capsule_id = "7a6dd345-e3fe-4f86-b2c3-c42c0d673c3c"
+# monitor_pipeline_capsule_id = "7a6dd345-e3fe-4f86-b2c3-c42c0d673c3c"
+
+# carter's personal use NEW
+monitor_pipeline_capsule_id = "a8a0f763-6d31-420f-95c6-f247de8ac8ea"
 
 co_api_token = os.getenv("CODEOCEAN_TOKEN")
 co_domain = "https://codeocean.allenneuraldynamics.org"
+# dandiset_id for cross_species v2 ephys
+dandiset_id = "001709"
 client = CodeOcean(domain=co_domain, token=co_api_token)
 print(client.token)
 
@@ -41,7 +46,7 @@ def get_monitor_settings(pipeline_id, subject_id, data_assets, dandiset_id) -> P
             data_assets=data_assets,
             processes=[
                 PipelineProcessParams(name="capsule_nwb_zarr_hdf_5_conversion_12",named_parameters=[NamedRunParam(param_name='input_nwb_dir',value='ecephys_sorted/nwb')]),
-                PipelineProcessParams(name="capsule_nwb_packaging_stimulus_6",named_parameters=[NamedRunParam(param_name='input_csv_dir',value='stim_tables')]),
+                PipelineProcessParams(name="capsule_aind_stimulus_camstim_nwb_6",named_parameters=[NamedRunParam(param_name='input_csv_dir',value='stim_tables')]),
                 PipelineProcessParams(name="capsule_aind_ccf_nwb_18",named_parameters=[NamedRunParam(param_name='convert_ibl_bregma_to_ccf',value='true')]),
                 PipelineProcessParams(name="capsule_aind_running_speed_nwb_14",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
                 PipelineProcessParams(name="capsule_aind_eye_tracking_nwb_15",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
@@ -98,7 +103,6 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--asset_mounts_csv", type=str, required=True)
-    parser.add_argument("--dandiset_id", type=str, required=True)
     parser.add_argument("--exclude_n_cols", type=int, default=1)
     args = parser.parse_args()
 
@@ -108,7 +112,6 @@ def main():
         lines = [line.rstrip(",\n") for line in f]
     asset_mounts = pd.read_csv(StringIO("\n".join(lines)))
 
-    dandiset_id = args.dandiset_id
     enc = args.exclude_n_cols
     assert type(dandiset_id) is str and len(dandiset_id) == 6
 
