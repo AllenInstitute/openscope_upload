@@ -249,7 +249,8 @@ def generate_jsons(session_ids: list[str], open_bucket: bool, force: bool = Fals
         if not no_upload:
             # try:
             print(session_id)
-            np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, test=test_upload, codeocean_pipeline_settings=codeocean_configs)
+            extra_params = {"s3_bucket": "private"} if not open_bucket else {}
+            np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, test=test_upload, codeocean_pipeline_settings=codeocean_configs, extra_UploadJobConfigsV2_params=extra_params)
             log.append(f"{session_id} upload succesfully triggered!")
             # except Exception as e:
             #     log.append(f"{session_id} upload failed with error: {e}")
