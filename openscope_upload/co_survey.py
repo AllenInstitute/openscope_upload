@@ -1,7 +1,5 @@
 
-from aind_data_access_api.document_db import MetadataDbClient
 import argparse
-from codeocean.data_asset import DataAssetSearchParams
 from codeocean import CodeOcean
 import os
 import aind_session
@@ -186,7 +184,7 @@ def survey_co_assets(session_ids, take_newest=True, output_csv_name=None):
     Parameters
     ----------
     session_ids : pd.DataFrame
-        DataFrame with columns: 'mouse_id', 'sessionid', 'date_of_acquisition' (MM/DD/YYYY format)
+        DataFrame with columns: 'mouse_id', 'session_id', 'date_of_acquisition' (MM/DD/YYYY format)
     take_newest : bool, default=True
         If True, only return the most recent asset for each asset type
     output_csv_name : str, optional
@@ -205,7 +203,7 @@ def survey_co_assets(session_ids, take_newest=True, output_csv_name=None):
     print(session_ids.columns)
     for i, row in session_ids.iterrows():
         mouse_id = str(row['mouse_id'])
-        session_id = str(row['sessionid'])
+        session_id = str(row['session_id'])
         if session_id in session_ids_seen:
             continue
         session_ids_seen.add(session_id)
@@ -247,7 +245,7 @@ def parse_session_id(session_id: str) -> dict:
     Returns
     -------
     dict or None
-        Dictionary with keys: 'sessionid', 'mouse_id', 'date_of_acquisition'
+        Dictionary with keys: 'session_id', 'mouse_id', 'date_of_acquisition'
         Returns None if session_id is 'aborted'
     """
     # Skip aborted sessions
@@ -300,7 +298,7 @@ def parse_session_id(session_id: str) -> dict:
         raise ValueError(f"Invalid session ID format: {session_id}. Expected mouseid_datetimeT, mouseid_date_time, sessionid_mouseid_datetime, or modality_mouseid_date_time")
     
     return {
-        'sessionid': session_id,  # Full session ID
+        'session_id': session_id,  # Full session ID
         'mouse_id': mouse_id,
         'date_of_acquisition': date_formatted
     }

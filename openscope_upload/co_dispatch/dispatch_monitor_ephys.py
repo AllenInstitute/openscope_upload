@@ -47,8 +47,8 @@ def get_monitor_settings(pipeline_id, sub_id, data_assets, dandiset_id):
             ]
         ),
         capture_settings={
-            "process_name_suffix": "nwb",
-            "tags": ["derived", "ecephys", "neuropixels", "nwb", sub_id],
+            "process_name_suffix": "sorted",
+            "tags": ["derived", "ecephys", "neuropixels", "sorted", sub_id],
             "custom_metadata": {
                 "data level": "derived",
                 "experiment type": "ecephys",

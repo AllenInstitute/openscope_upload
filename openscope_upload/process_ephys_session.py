@@ -144,7 +144,7 @@ def fetch_rig_json(session: np_session.Session):
     print(res)
 
 
-def get_co_configs():
+def get_co_configs(open_bucket=False):
     # return {
     #     schema_modalities.BEHAVIOR_VIDEOS.abbreviation: PipelineMonitorSettings(
     #             run_params=RunParams(
@@ -193,23 +193,25 @@ def get_co_configs():
             # "pipeline_id": "daef0b82-2f12-4122-964d-efa5f608ad69",
             "pipeline_id": "e16bc028-30b1-4aa2-89f9-a2cb27aaf844",
             "data_assets": [{"id": "", "mount": "ecephys"}],
-            "parameters": []
+            "parameters": [],
+            "version": 6
         },
         "capture_settings": {
             "process_name_suffix": "sorted",
             "tags": ["derived", "ecephys_sorted"],
             "permissions": {"everyone": "viewer"},
-            "target": {"aws": {"bucket": "aind-open-data"}},
             "custom_metadata": {"data level": "derived",},
         }
     }
+    if open_bucket:
+        spike_sorting_settings_json["capture_settings"]["target"] = {"aws": {"bucket": "aind-open-data"}}
 
     return {
         schema_modalities.ECEPHYS.abbreviation: PipelineMonitorSettings(**spike_sorting_settings_json)
     }
 
 
-def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool = False, overwrite: bool = False, test_upload: bool = False) -> None:
+def generate_jsons(session_ids: list[str], open_bucket: bool, force: bool = False, no_upload: bool = False, overwrite: bool = False, test_upload: bool = False) -> None:
     log = []
     for session_id in session_ids:
         # fetch_rig_json(session) # do this when slims is up and running
@@ -243,7 +245,7 @@ def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool 
         session_mapper.run_job()
         
 
-        codeocean_configs = get_co_configs()
+        codeocean_configs = get_co_configs(open_bucket=open_bucket)
         if not no_upload:
             # try:
             print(session_id)
@@ -264,6 +266,7 @@ def generate_jsons(session_ids: list[str], force: bool = False, no_upload: bool 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Generate a session.json file for an ephys session')
     parser.add_argument('session_ids', nargs='+', help='one or more session IDs (lims or np-exp foldername) or path to session folder')
+    parser.add_argument('open_bucket', required=True, type=bool, help='Whether to capture the processed spikesorted asset to the open bucket (aind-open-data) or keep internal')
     parser.add_argument('--no_upload', action='store_true', help='Don\'t run an upload job, just generate metadata files on npexp')
     parser.add_argument('--force', action='store_true', help="enable `force_cloud_sync` option, re-uploading and re-making raw asset even if data exists on S3")
     parser.add_argument('--overwrite', action='store_true', help='overwrite metadata files that already exist')

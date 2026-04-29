@@ -75,7 +75,7 @@ def get_monitor_settings(
                 ),
                 NamedRunParam(
                     param_name="pipeline_version",
-                    value="11.0",
+                    value="13.0",
                 )
             ],
         ),

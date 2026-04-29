@@ -12,6 +12,7 @@ dependencies = [
     "aind-data-schema-models>=0.7.5",
     "aind-metadata-mapper>=0.29.3",
     "codeocean>=0.14.0",
+    "gspread>=6.2.1",
     "h5py>=3.15.1",
     "harp-python>=0.4.1",
     "hdmf>=4.2.0",
@@ -21,6 +22,8 @@ dependencies = [
     "npc-ephys>=0.1.41",
     "npc-mvr>=0.1.15",
     "numpy>=1.26.4",
+    "oauth2client>=4.1.3",
     "pandas>=2.3.3",
     "pynwb>=3.0.0",
+    "remfile>=0.1.13",
 ]

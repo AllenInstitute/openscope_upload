@@ -1,1 +1,7 @@
 **__pycache__**
+
+# Google service account credentials
+credentials/
+service_account.json
+**/credentials.json
+**/*key*.json

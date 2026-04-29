@@ -42,6 +42,9 @@ def get_monitor_settings(pipeline_id, subject_id, data_assets, dandiset_id) -> P
             processes=[
                 PipelineProcessParams(name="capsule_carters_aind_dandi_upload_9",named_parameters=[NamedRunParam(param_name='dandiset_id',value=dandiset_id)]),
                 PipelineProcessParams(name="capsule_carters_combine_nwb_8",named_parameters=[NamedRunParam(param_name='output_format',value='hdf5')]),
+                PipelineProcessParams(name="capsule_aind_running_speed_nwb_3",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
+                PipelineProcessParams(name="capsule_aind_eye_tracking_nwb_7",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
+                PipelineProcessParams(name="capsule_aind_stimulus_camstim_nwb_4",named_parameters=[NamedRunParam(param_name='input_csv_dir',value='stim_tables')]),
             ]
         ),
         capture_settings={
@@ -90,7 +93,7 @@ def trigger_monitor(jobs, pipeline_id, subject_id, data_assets, dandiset_id):
 
 def main():
     # v2 NWB packaging pipeline
-    pipeline_id = "06f2f564-7e13-4974-86f7-1381b52adbe6"
+    pipeline_id = "22e407d9-87ec-4a2b-b6bb-1c9f82ce3422"
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--asset_mounts_csv", type=str, required=True)
