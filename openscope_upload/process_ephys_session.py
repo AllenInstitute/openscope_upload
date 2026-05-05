@@ -211,7 +211,7 @@ def get_co_configs(open_bucket=False):
     }
 
 
-def generate_jsons(session_ids: list[str], open_bucket: bool, force: bool = False, no_upload: bool = False, overwrite: bool = False, test_upload: bool = False, no_adjust_timestamps: bool = False) -> None:
+def generate_jsons(session_ids: list[str], open_bucket: bool, force: bool = False, no_upload: bool = False, overwrite: bool = False, test_upload: bool = False) -> None:
     log = []
     for session_id in session_ids:
         # fetch_rig_json(session) # do this when slims is up and running
@@ -250,7 +250,7 @@ def generate_jsons(session_ids: list[str], open_bucket: bool, force: bool = Fals
             # try:
             print(session_id)
             extra_params = {"s3_bucket": "private"} if not open_bucket else {}
-            np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, test=test_upload, codeocean_pipeline_settings=codeocean_configs, extra_UploadJobConfigsV2_params=extra_params, adjust_ephys_timestamps=not no_adjust_timestamps)
+            np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, test=test_upload, codeocean_pipeline_settings=codeocean_configs, extra_UploadJobConfigsV2_params=extra_params)
             log.append(f"{session_id} upload succesfully triggered!")
             # except Exception as e:
             #     log.append(f"{session_id} upload failed with error: {e}")
@@ -267,12 +267,12 @@ def generate_jsons(session_ids: list[str], open_bucket: bool, force: bool = Fals
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Generate a session.json file for an ephys session')
     parser.add_argument('session_ids', nargs='+', help='one or more session IDs (lims or np-exp foldername) or path to session folder')
-    parser.add_argument('--open_bucket', type=bool, default=True, help='Whether to capture the processed spikesorted asset to the open bucket (aind-open-data) or keep internal')
+    parser.add_argument('--private_bucket', dest='open_bucket', action='store_false', help='Keep the processed spikesorted asset internal rather than capturing to the open bucket (aind-open-data)')
+    parser.set_defaults(open_bucket=True)
     parser.add_argument('--no_upload', action='store_true', help='Don\'t run an upload job, just generate metadata files on npexp')
     parser.add_argument('--force', action='store_true', help="enable `force_cloud_sync` option, re-uploading and re-making raw asset even if data exists on S3")
     parser.add_argument('--overwrite', action='store_true', help='overwrite metadata files that already exist')
     parser.add_argument('--test_upload', action='store_true', help='Run a test upload to the aind data transfer dev endpoint')
-    parser.add_argument('--no_adjust_timestamps', action='store_true', help='Skip ephys timestamp adjustment (needed when some probes have empty TTL files)')
     return parser.parse_args()
 
 

@@ -13,14 +13,22 @@ from pathlib import Path
 PIPELINE_ID = "e16bc028-30b1-4aa2-89f9-a2cb27aaf844"
 
 # Monitor capsule (runs pipeline with capture settings under user credentials)
-MONITOR_CAPSULE_ID = "a8a0f763-6d31-420f-95c6-f247de8ac8ea"
+MONITOR_CAPSULE_ID = "7a6dd345-e3fe-4f86-b2c3-c42c0d673c3c"
 
 CO_API_TOKEN = os.getenv("CODEOCEAN_TOKEN")
 CO_DOMAIN = "https://codeocean.allenneuraldynamics.org"
 CLIENT = CodeOcean(domain=CO_DOMAIN, token=CO_API_TOKEN)
 
 
-def get_monitor_settings(session_asset_id: str) -> PipelineMonitorSettings:
+def get_monitor_settings(session_asset_id: str, open_bucket: bool = True) -> PipelineMonitorSettings:
+    capture_settings_kwargs = dict(
+        process_name_suffix="sorted",
+        tags=["derived", "ecephys_sorted"],
+        permissions={"everyone": "viewer"},
+        custom_metadata={"data level": "derived"},
+    )
+    if open_bucket:
+        capture_settings_kwargs["target"] = {"aws": {"bucket": "aind-open-data"}}
     return PipelineMonitorSettings(
         run_params=RunParams(
             capsule_id=PIPELINE_ID,
@@ -28,13 +36,7 @@ def get_monitor_settings(session_asset_id: str) -> PipelineMonitorSettings:
             data_assets=[DataAssetsRunParam(id=session_asset_id, mount="ecephys")],
             processes=[],
         ),
-        capture_settings=CaptureSettings(
-            process_name_suffix="sorted",
-            tags=["derived", "ecephys_sorted"],
-            permissions={"everyone": "viewer"},
-            target={"aws": {"bucket": "aind-open-data"}},
-            custom_metadata={"data level": "derived"},
-        ),
+        capture_settings=CaptureSettings(**capture_settings_kwargs),
     )
 
 
@@ -72,12 +74,13 @@ def parse_session_assets_from_csv(csv_path):
     return session_asset_ids
 
 
-def dispatch_kilosort_pipeline(session_asset_ids):
+def dispatch_kilosort_pipeline(session_asset_ids, open_bucket: bool = True):
     """
     Dispatch Kilosort pipeline runs via the monitor capsule for given session assets.
 
     Args:
         session_asset_ids: List of session asset ID strings
+        open_bucket: Whether to capture sorted asset to aind-open-data (True) or keep internal (False)
 
     Returns:
         List of monitor run response objects
@@ -86,7 +89,7 @@ def dispatch_kilosort_pipeline(session_asset_ids):
 
     jobs = []
     for session_asset_id in session_asset_ids:
-        settings = get_monitor_settings(session_asset_id)
+        settings = get_monitor_settings(session_asset_id, open_bucket=open_bucket)
         pipeline_params = settings.model_dump_json(exclude_none=True)
         print(pipeline_params)
 
@@ -129,6 +132,13 @@ Examples:
         type=Path,
         help='Path to CSV file containing session assets (must have "session_assets" or "ecephys_session" column)'
     )
+    parser.add_argument(
+        '--private_bucket',
+        dest='open_bucket',
+        action='store_false',
+        help='Keep the sorted asset internal rather than capturing to the open bucket (aind-open-data)'
+    )
+    parser.set_defaults(open_bucket=True)
     
     args = parser.parse_args()
     
@@ -150,7 +160,7 @@ Examples:
         return
     
     # Dispatch the pipeline runs
-    dispatch_kilosort_pipeline(session_asset_ids)
+    dispatch_kilosort_pipeline(session_asset_ids, open_bucket=args.open_bucket)
 
 
 if __name__ == "__main__":
