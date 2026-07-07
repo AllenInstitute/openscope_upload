@@ -90,16 +90,15 @@ def dispatch_kilosort_pipeline(session_asset_ids, open_bucket: bool = True):
     jobs = []
     for session_asset_id in session_asset_ids:
         settings = get_monitor_settings(session_asset_id, open_bucket=open_bucket)
-        pipeline_params = settings.model_dump_json(exclude_none=True)
+        pipeline_params = settings.model_dump_json(exclude_none=True, exclude_defaults=True)
         print(pipeline_params)
-
-        monitor_params = RunParams(
-            capsule_id=MONITOR_CAPSULE_ID,
-            parameters=[pipeline_params],
-        )
+        print(f"pipeline_params length: {len(pipeline_params)} chars")
 
         print(f"\n\nDispatching monitor for asset {session_asset_id}")
-        computation = CLIENT.computations.run_capsule(monitor_params)
+        computation = CLIENT.computations.run_capsule(RunParams(
+            capsule_id=MONITOR_CAPSULE_ID,
+            parameters=[pipeline_params],
+        ))
         print(f"Monitor job id: {computation.id}")
         jobs.append(computation)
         time.sleep(5)

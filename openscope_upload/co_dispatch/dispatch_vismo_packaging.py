@@ -1,6 +1,5 @@
 from codeocean.computation import RunParams, DataAssetsRunParam, PipelineProcessParams, NamedRunParam
 from codeocean import CodeOcean
-from aind_codeocean_api.codeocean import CodeOceanClient
 from aind_codeocean_pipeline_monitor.models import (CaptureSettings,
                                                     PipelineMonitorSettings)
 
@@ -39,10 +38,11 @@ def get_monitor_settings(pipeline_id, subject_id, data_assets, dandiset_id) -> P
             processes=[
                 PipelineProcessParams(name="capsule_carters_aind_dandi_upload_9",named_parameters=[NamedRunParam(param_name='dandiset_id',value=dandiset_id),
                                                                                                    NamedRunParam(param_name='acq_suffix',value='synced')]),
-                PipelineProcessParams(name="capsule_aind_stimulus_camstim_nwb_vismo_4",named_parameters=[NamedRunParam(param_name='input_csv_dir',value='stim_tables')]),
-                PipelineProcessParams(name="capsule_carters_combine_nwb_8",named_parameters=[NamedRunParam(param_name='output_format',value='hdf5')]),
-                PipelineProcessParams(name="capsule_aind_running_speed_nwb_3",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
-                PipelineProcessParams(name="capsule_aind_eye_tracking_nwb_7",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
+                # input_csv_dir, output_format, use_input_nwb are pipeline defaults — omitted to stay under CO 1024-char param limit
+                # PipelineProcessParams(name="capsule_aind_stimulus_camstim_nwb_vismo_4",named_parameters=[NamedRunParam(param_name='input_csv_dir',value='stim_tables')]),
+                # PipelineProcessParams(name="capsule_carters_combine_nwb_8",named_parameters=[NamedRunParam(param_name='output_format',value='hdf5')]),
+                # PipelineProcessParams(name="capsule_aind_running_speed_nwb_3",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
+                # PipelineProcessParams(name="capsule_aind_eye_tracking_nwb_7",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
             ]
         ),
         capture_settings={
@@ -61,13 +61,12 @@ def get_monitor_settings(pipeline_id, subject_id, data_assets, dandiset_id) -> P
 
 def trigger_monitor(jobs, pipeline_id, subject_id, data_assets, dandiset_id):
     settings = get_monitor_settings(pipeline_id, subject_id, data_assets, dandiset_id)
-    pipeline_params = settings.model_dump_json(exclude_none=True)
+    pipeline_params = settings.model_dump_json(exclude_none=True, exclude_defaults=True)
     print(pipeline_params)
-    monitor_params = RunParams(
+    print(f"pipeline_params length: {len(pipeline_params)} chars")
+    monitor_run_comp = client.computations.run_capsule(RunParams(
         capsule_id=monitor_pipeline_capsule_id, parameters=[pipeline_params]
-    )
-    print(monitor_params)
-    monitor_run_comp = client.computations.run_capsule(monitor_params)
+    ))
     job_id = monitor_run_comp.id
     jobs.append(monitor_run_comp)
     print(f"Job {job_id} started")

@@ -42,8 +42,9 @@ def get_monitor_settings(pipeline_id, sub_id, data_assets, dandiset_id):
             processes=[
                 PipelineProcessParams(name="capsule_carters_aind_dandi_upload_16",named_parameters=[NamedRunParam(param_name='dandiset_id',value=dandiset_id)]),
                 PipelineProcessParams(name="capsule_nwb_zarr_hdf_5_conversion_12",named_parameters=[NamedRunParam(param_name='input_nwb_dir',value='ecephys_sorted/nwb')]),
-                PipelineProcessParams(name="capsule_aind_running_speed_nwb_13",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
-                PipelineProcessParams(name="capsule_aind_eye_tracking_nwb_14",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
+                # use_input_nwb=True is a pipeline default — omitted to stay under CO 1024-char param limit
+                # PipelineProcessParams(name="capsule_aind_running_speed_nwb_13",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
+                # PipelineProcessParams(name="capsule_aind_eye_tracking_nwb_14",named_parameters=[NamedRunParam(param_name='use_input_nwb',value='True')]),
             ]
         ),
         capture_settings={
@@ -64,13 +65,12 @@ def get_monitor_settings(pipeline_id, sub_id, data_assets, dandiset_id):
 
 def trigger_monitor(jobs, pipeline_id, subject_id, data_assets, dandiset_id):
     settings = get_monitor_settings(pipeline_id, subject_id, data_assets, dandiset_id)
-    pipeline_params = settings.model_dump_json(exclude_none=True)
+    pipeline_params = settings.model_dump_json(exclude_none=True, exclude_defaults=True)
     print(pipeline_params)
-    monitor_params = RunParams(
+    print(f"pipeline_params length: {len(pipeline_params)} chars")
+    monitor_run_comp = client.computations.run_capsule(RunParams(
         capsule_id=monitor_pipeline_capsule_id, parameters=[pipeline_params]
-    )
-    print(monitor_params)
-    monitor_run_comp = client.computations.run_capsule(monitor_params)
+    ))
     job_id = monitor_run_comp.id
     jobs.append(monitor_run_comp)
     print(f"Job {job_id} started")

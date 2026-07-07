@@ -173,12 +173,10 @@ def run():
             subject_id=row[subject_id_index],
         )
         settings = get_monitor_settings(job_settings)
-        pipeline_params = settings.model_dump_json(exclude_none=True)
-        monitor_params = RunParams(
+        pipeline_params = settings.model_dump_json(exclude_none=True, exclude_defaults=True)
+        monitor_run_comp = client.computations.run_capsule(RunParams(
             capsule_id=monitor_pipeline_capsule_id, parameters=[pipeline_params]
-        )
-        print(monitor_params)
-        monitor_run_comp = client.computations.run_capsule(monitor_params)
+        ))
         job_id = monitor_run_comp.id
         jobs.append(monitor_run_comp)
         logging.info(f"Job {job_id} started")
