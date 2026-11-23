@@ -211,7 +211,7 @@ def get_co_configs(open_bucket=False):
     }
 
 
-def generate_jsons(session_ids: list[str], open_bucket: bool, force: bool = False, no_upload: bool = False, overwrite: bool = False, test_upload: bool = False) -> None:
+def generate_jsons(session_ids: list[str], open_bucket: bool, force: bool = False, no_upload: bool = False, overwrite: bool = False, test_upload: bool = False, no_spike_sorting: bool = False) -> None:
     log = []
     for session_id in session_ids:
         # fetch_rig_json(session) # do this when slims is up and running
@@ -245,12 +245,21 @@ def generate_jsons(session_ids: list[str], open_bucket: bool, force: bool = Fals
         session_mapper.run_job()
         
 
-        codeocean_configs = get_co_configs(open_bucket=open_bucket)
         if not no_upload:
             # try:
             print(session_id)
             extra_params = {"s3_bucket": "private"} if not open_bucket else {}
-            np_codeocean.upload_session(session_id, force=force, hpc_upload_job_email=USER_EMAIL, test=test_upload, codeocean_pipeline_settings=codeocean_configs, extra_UploadJobConfigsV2_params=extra_params)
+            upload_kwargs = {
+                "force": force,
+                "hpc_upload_job_email": USER_EMAIL,
+                "test": test_upload,
+                "extra_UploadJobConfigsV2_params": extra_params,
+            }
+            if not no_spike_sorting:
+                upload_kwargs["codeocean_pipeline_settings"] = get_co_configs(
+                    open_bucket=open_bucket
+                )
+            np_codeocean.upload_session(session_id, **upload_kwargs)
             log.append(f"{session_id} upload succesfully triggered!")
             # except Exception as e:
             #     log.append(f"{session_id} upload failed with error: {e}")
@@ -273,6 +282,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--force', action='store_true', help="enable `force_cloud_sync` option, re-uploading and re-making raw asset even if data exists on S3")
     parser.add_argument('--overwrite', action='store_true', help='overwrite metadata files that already exist')
     parser.add_argument('--test_upload', action='store_true', help='Run a test upload to the aind data transfer dev endpoint')
+    parser.add_argument('--no_spike_sorting', action='store_true', help='Upload the session without dispatching Kilosort spike sorting')
     return parser.parse_args()
 
 
